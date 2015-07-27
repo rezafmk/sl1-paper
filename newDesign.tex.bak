@@ -5,7 +5,10 @@ S-L1 is a level 1 cache implemented entirely in software.
 It uses the space available in each SMX's shared memory, which has the same access latency as the
 hardware L1.
 We also considered using SMX's texture cache, but it is a hardware-managed, read-only cache and
-thus, does not suit S-L1 needs.% and  \todo{... say why we did not use it ...}
+thus, does not suit S-L1 needs.\footnote{In a separate set of experiments, we also evaluated the effectiveness of texture cache
+for streaming applications. The results show that, like hardware L1 cache, texture cache hit rate drops significantly
+when the number of online threads increase, creating a graph similar to
+Figure~\ref{fig:L1HitRate} (not shown).}% and  \todo{... say why we did not use it ...}
 
 The design of S-L1 is based on three key design elements.
 First, the cache space is partitioned into thread-private cache segments, each containing one or
@@ -25,15 +28,16 @@ Larger cache lines perform better for applications exhibiting high spacial local
 but they perform poorer for applications with low spacial locality due to ($i$) the extra overhead
 of loading the cache lines requiring multiple memory transactions and ($ii$) the increased cache
 thrashing because fewer cache lines are available.
- 
 We decided on using 16-byte cache lines after experimenting with different cache line sizes --- see
 Section~\ref{sec:cachelineeffect}. 
 This size works well because 16B is the widest load/store size available on modern GPUs,
 allowing the load/store of an entire line with one memory access.
-Moreover, the use of larger lines is constrained by the fact that the size of shared memory is
-limited --- the most recent GPUs only have 48KB of shared memory per SMX for up to 2,048 threads.
 
-Thirdly, we only cache a limited number of data structures.\footnote{
+%\todo{Don't you think we can cut the following sentence. We don't need to say more than we determinted 16B through experimentation. What we say below is too vague to really mean anything... Reza: Sure.}
+%Moreover, the use of larger lines is constrained by the fact that the size of shared memory is
+%limited --- the most recent GPUs only have 48KB of shared memory per SMX for up to 2,048 threads.
+
+Thirdly, we only cache some of the application's data structures.\footnote{
     In this context, each argument to the GPU kernel that points to data is referred to as a data structure. 
     For example, matrix multiply might have three arguments a, b and c referring to three matrices;
     each is considered a data structure.}
@@ -55,21 +59,26 @@ and in part by calculating the maximum number of threads that can be allocated o
 turn depends on the resource usage of GPU threads (e.g. register usage) and available
 resources of SMX, which is extracted at compile-time and runtime, respectively.
 
-Once the number of cache lines per thread -- $CLN$ -- is determined, up to that many data structures are marked as S-L1 cacheable and a separate cache line is assigned to each.\footnote{
-	In principle, multiple cache lines could be assigned to a data structure, 
-	but we found this does not benefit the streaming applications we are targeting.}
-Data structures that are not marked will not be cached and are accessed directly from memory. 
-If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by  the application), no cache lines are assigned to threads (i.e.
-$CLN = 0$), so the software cache is effectively disabled. 
+Once the number of cache lines per thread -- $CLN$ -- has been determined, up to that many data structures are marked as S-L1 cacheable and a separate cache line is assigned to each.
+In principle, multiple cache lines could be assigned to a data structure, but we found this does not benefit the streaming applications we are targeting.
+Data structures marked non-cacheable will not be cached and are accessed directly from memory. 
+If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by the application) then S-L1 is effectively disable by assigning no cache lines to threads (i.e., $CLN = 0$). 
 
 To determine which data structures to cache, we evaluate the benefit of caching the data of each
 data structure using a short monitoring phase at runtime.
 In the monitoring phase, the core computation of the application is executed for a short period of
 time, during which a software cache for each data structure and thread is simulated to count the number of cache hits.
 When the monitoring phase terminates, the $CLN$ data structures with the highest cache hit counts
-will be marked as cached. 
+will be marked so they are cached. 
 The code required for the monitoring phase is injected into existing applications using straightforward
 compiler transformations. 
+
+%\todo{I suspect we cannot address this in this version of the paper, but the above paragraph begs the question as to why you have slowdowns with S-L1 for some applications, because theoretically your monitoring phase tells you exactly for which data structures S-L1 is effective...
+%Reza: The reason we have slowdown is not because S-L1 has low hit rate. It performs well caching the data structure that it has determined to be 
+%cache-friendly in the monitoring phase. The reason behind slow-down is the added instructions executed in the critical path of the app. 
+%An ideal design of S-L1 would include the profiling metrics (e.g. instruction issued/executed, memory transactions) in evaluating whether if
+%caching is desirable or not.
+%}
 
 
 
@@ -82,7 +91,7 @@ cache hit counts, and the top $CLN$ data structures are selected to be cached in
 The second loop slice then executes the remainder of the computation using S-L1 for the top $CLN$
 data structures.
 
-The following example shows a sample transformation:
+As an example, the following code:
 %\todo{indent this code, cause it looks awful this way. To save space, have the opening squiggly bracket at the end of the previous line.}
 
 {\scriptsize
@@ -109,7 +118,7 @@ is transformed into:
 \\ \verb%  int i = start;%
 \\ \verb%  %
 \\ \verb%  //slice 1: monitoring phase%
-\\ \verb%  for(; (i < end) && (counter<THRESHOLD); i ++) {%
+\\ \verb%  for(; (i < end) && (counter<THRESHOLD); i ++, counter ++) {%
 \\ \verb%       char a = charInput[i];%
 \\ \verb%       simulateCache(&charInput[i], 0, &cacheConfig);%
 \\ \verb%       int b = intInput[i];%
@@ -198,8 +207,9 @@ is transformed into:
 %//Some final computation
 %\end{verbatim}
 %}
-\vspace{-0.4cm}
+% \vspace{-0.4cm}
 % {\bf Monitoring phase:}
+
 \subsubsection{Monitoring phase}
 In the monitoring loop, a call to \texttt{simulateCache()} is inserted after each memory access.
 This function takes as argument the address of the memory being accessed, a {\it data structure identifier},
@@ -291,6 +301,7 @@ Secondly, in our current implementation, we only cache data structures if it has
 above 50\%. A hit rate of more than 50\% means that, on average, the cache lines are reused at least once
 after loading the data due to a miss.
 We do this because otherwise the overhead of the software implementation will not be amortized by faster memory accesses.
+%\todo{The above sounds very ad-hoc and non-scientific? Were any experiments done to determine 50\% is the most appropriate level? not that much..}
 %\todo{replace XX and explain why the XX}.
 
 \subsubsection{Computation phase}
@@ -302,7 +313,7 @@ address of the data in memory, depending on whether the accessed data structure 
 %Note that this corresponds to the C-level representation of the transformations; 
 %the compiler in-lines calls to \texttt{accessThroughCache()}, so instead of first calling
 %\texttt{accessThroughCache()}and then using the addresses it returns, the data is directly accessed.
-A simplified version of the \texttt{accessThroughCache()} is as follows:
+A simplified version of the function is as follows:
 
 {\scriptsize
 \begin{flushleft}
@@ -377,38 +388,32 @@ A simplified version of the \texttt{accessThroughCache()} is as follows:
 %}
 
 \noindent
-If the data of a cached data structure is not found in the cache line, then the current contents of the cache line is evicted before new
-data is loaded into the cache line from memory.  
-When evicting a line, its dirty bit is checked if the corresponding data structure is read-write. 
-If not set, the cache line is simply overwritten by the new data.
-If set, the modified data is written back to memory before loading the new data.
-We keep a bitmap (in registers) to identify which portions of the cache line are modified, so that only those need
-to be written back; 
-this also guarantees that if two different threads cache the same line (in different  S-L1 lines) and
-modify different potions of the cache line, they will not overwrite each others data.
-Atomic bitwise operations use the bitmap as a write mask to perform the data write-backs.
-%\todo{check to see if this last sentence is correct}
+S-L1 cache misses on cacheable data cause the eviction of an existing cache
+line to make space for the new target cache line. Modified portions of the
+current cache line are first written back if neccessary; a bitmap (kept in
+registers) is used to identify which portions of the cache line are modified.
+This approach also guarantees that two different threads will not overwrite each others data if they cache the same line (in different S-L1 lines) and
+modify different potions of the cache line.
 
 %TODO: move this parag to after the second loop is described
 A call to \texttt{flush()} is inserted after the second loop slice to flush the modified cache lines to memory and invalidate all cache lines before the application terminates.
 
-Extra overhead can be avoided if the pointers to data structures, provided as arguments to the GPU
-kernel, are not aliased. 
+Extra overhead can be avoided if the pointers to the data structures provided as arguments to the GPU
+kernel are not aliased. 
 Programmers can indicate this is the case by including the \texttt{restrict} keyword with each
 kernel argument. 
 If this keyword is not included then the caching layer will still work properly, albeit 
-with extra overhead because it has to be assumed that the pointers may be aliased,
+with extra overhead because it has to assume the pointers may be aliased,
 in which case the caching layer will need to perform data lookups in all cache lines assigned to the same thread for
 each memory access --- even for memory accesses to uncached data structures.
 
 
 
 \subsection{S-L1 overheads}
-When evaluating S-L1, the following overheads need to be considered:
+Our implementation of S-L1 introduces overheads for the monitoring phase, when determining what data structures to cache and for each memory access,
+and when executing \texttt{accessThroughCache()} for each memory access.
 
 
-\noindent
-{\bf Monitoring phase:} 
 Our experiments show that the performance overhead of the monitoring phase is relatively low --- an
 average of less than 1\% was observed in the 10 applications we experimented with (see
 Section~\ref{sec:sl1overheadsresults}). 
@@ -422,19 +427,15 @@ miss counters.
 These registers are only required during the monitoring phase and will be reused after
 the phase terminates.
 
-\noindent
-{\bf calculateWhatToCache():} 
+
 The performance overhead of \texttt{calculateWhatToCache()} is
 negligible since it only needs to identify which $CLN$ data structures have the highest hit counts,
-and typically, the applications access only a few data structures.
+and typically, applications only access a few data structures.
 
-\noindent
-{\bf accessThroughCache():} 
-Most of the overhead of the caching layer occurs in this function. 
-For accesses to data structures that are not cached, the performance overhead entails
+Most of the overhead of the caching layer occurs in the function \texttt{accessThroughCache()}. 
+For accesses to non-cached data structures, the performance overhead entails
 the execution of four extra machine instructions.
-However, accesses to cached data structures incur more significant overhead since a large body of
-code needs to be executed in some cases; e.g., when evicting a cache line.
+However, accesses to cached data structures incur significantly more overhead in some cases; e.g., when evicting a cache line.
 Our experiments indicate that the caching layer increases the number of instructions issued by 25\%
 on average over the course of the entire application (see Section~\ref{sec:sl1overheadsresults}).
 This overhead can indeed negatively impact the overall performance of an application if it is not
@@ -454,7 +455,7 @@ most 2,048 threads, in which case the S-L1 caching layer would, in the worst cas
 number of available registers for cached read-only and read-write data structures, respectively. 
 % For example, an application that has 2 read-only and 2 read-write data structures,
 % needs to put aside up to 31\% of registers available to it for the caching layer.
-\vspace{-0.3cm}
+% \vspace{-0.3cm}
 
 \subsection{Coherence considerations}
 
@@ -462,9 +463,12 @@ Since each thread has its own private cache lines, cached data will not be coher
 cache lines of different threads. 
 Thus, if two threads write to the same data item cached separately, the correctness of the program
 might be compromised.
-Fortunately, the loose memory consistency model enforced by GPUs makes it easy to maintain the required level of consistency for cache accesses.
+Fortunately, the loose memory consistency model offered by GPUs makes it easy to maintain the same level of consistency for S-L1 accesses.
 We follow two simple rules to maintain the correctness of the program:
-(a)~we flush the entire cache on {\it memory fence instructions} and (b)~we evict the cache lines containing data targeted by atomic instructions before the instruction executes.
+(a)~we flush the threads' cache lines on {\it memory fence instructions} and (b)~we do not cache the data of data
+structures that are accessed through atomic instructions.
+% evict the cache lines containing
+%data targeted by atomic instructions before the instruction executes.
 %\todo{fact check (b)}
 
 Executing a {\it memory fence instruction} enforces all memory writes that were performed before the
@@ -473,15 +477,16 @@ GPGPU programmers are required to explicitly use these instructions if the appli
 on a specific ordering of memory reads/writes. 
 We implement this by inserting a call to \texttt{flush()} immediately before each memory fence
 instruction, which flushes the contents of the modified cache lines to memory
-and invalidates the cache lines by setting their associated mapped addresses to zero.
+and invalidates the cache lines.
 
 By executing an {\it atomic instruction}, a thread can read, modify, and write back a data in GPU
 memory atomically.
-We insert an overloaded version of \texttt{flush()} before each atomic operation.
-The overloaded version of \texttt{flush()} has two arguments: the \texttt{address} of the memory location
-accessed by the atomic operation and the associated data structure \texttt{identifier}.
-It flushes the cache line if (and only if) the cache line contains the data pointed to by
-\texttt{address}~\cite{jia2012characterizing}.
+We extract the data structures that might be accessed by atomic instructions at compile time and mark them as not cacheable.
+%We insert an overloaded version of \texttt{flush()} before each atomic operation.
+%The overloaded version of \texttt{flush()} has two arguments: the \texttt{address} of the memory location
+%accessed by the atomic operation and the associated data structure \texttt{identifier}.
+%It flushes the cache line if (and only if) the cache line contains the data pointed to by
+%\texttt{address}~\cite{jia2012characterizing}.
 
 
 

@@ -61,7 +61,7 @@ resources of SMX, which is extracted at compile-time and runtime, respectively.
 
 Once the number of cache lines per thread -- $CLN$ -- has been determined, up to that many data structures are marked as S-L1 cacheable and a separate cache line is assigned to each.
 In principle, multiple cache lines could be assigned to a data structure, but we found this does not benefit the streaming applications we are targeting.
-Data structures that are not marked will not be cached and are accessed directly from memory. 
+Data structures marked non-cacheable will not be cached and are accessed directly from memory. 
 If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by the application) then S-L1 is effectively disable by assigning no cache lines to threads (i.e., $CLN = 0$). 
 
 To determine which data structures to cache, we evaluate the benefit of caching the data of each
@@ -69,7 +69,7 @@ data structure using a short monitoring phase at runtime.
 In the monitoring phase, the core computation of the application is executed for a short period of
 time, during which a software cache for each data structure and thread is simulated to count the number of cache hits.
 When the monitoring phase terminates, the $CLN$ data structures with the highest cache hit counts
-will be marked as cached. 
+will be marked so they are cached. 
 The code required for the monitoring phase is injected into existing applications using straightforward
 compiler transformations. 
 
@@ -313,7 +313,7 @@ address of the data in memory, depending on whether the accessed data structure 
 %Note that this corresponds to the C-level representation of the transformations; 
 %the compiler in-lines calls to \texttt{accessThroughCache()}, so instead of first calling
 %\texttt{accessThroughCache()}and then using the addresses it returns, the data is directly accessed.
-A simplified version of the \texttt{accessThroughCache()} is as follows:
+A simplified version of the function is as follows:
 
 {\scriptsize
 \begin{flushleft}
@@ -388,31 +388,30 @@ A simplified version of the \texttt{accessThroughCache()} is as follows:
 %}
 
 \noindent
-S-L1 cache misses on cacheable data cause the eviction of an existing cache line to make space for the new target cache line.
-If the existing cache line has been modified, then it is first written back to memory.
-We keep a bitmap (in registers) to identify which portions of the cache line are modified, so that only those need
-to be written back; 
-this also guarantees that if two different threads cache the same line (in different  S-L1 lines) and
-modify different potions of the cache line, they will not overwrite each others data.
-Atomic bitwise operations use the bitmap as a write mask to perform the data write-backs.
-%\todo{check to see if this last sentence is correct}
+S-L1 cache misses on cacheable data cause the eviction of an existing cache
+line to make space for the new target cache line. Modified portions of the
+current cache line are first written back if necessary; a bitmap (kept in
+registers) is used to identify which portions of the cache line are modified.
+This approach also guarantees that two different threads will not overwrite each others data if they cache the same line (in different S-L1 lines) and
+modify different potions of the cache line.
 
 %TODO: move this parag to after the second loop is described
 A call to \texttt{flush()} is inserted after the second loop slice to flush the modified cache lines to memory and invalidate all cache lines before the application terminates.
 
-Extra overhead can be avoided if the pointers to data structures, provided as arguments to the GPU
-kernel, are not aliased. 
+Extra overhead can be avoided if the pointers to the data structures provided as arguments to the GPU
+kernel are not aliased. 
 Programmers can indicate this is the case by including the \texttt{restrict} keyword with each
 kernel argument. 
 If this keyword is not included then the caching layer will still work properly, albeit 
-with extra overhead because it has to be assumed that the pointers may be aliased,
+with extra overhead because it has to assume the pointers may be aliased,
 in which case the caching layer will need to perform data lookups in all cache lines assigned to the same thread for
 each memory access --- even for memory accesses to uncached data structures.
 
 
 
 \subsection{S-L1 overheads}
-Our implementation of S-L1 introduces overheads for the monitoring phase, when determining what data structures to cache and for each memory access.
+Our implementation of S-L1 introduces overheads for the monitoring phase, when determining what data structures to cache and for each memory access,
+and when executing \texttt{accessThroughCache()} for each memory access.
 
 
 Our experiments show that the performance overhead of the monitoring phase is relatively low --- an
@@ -431,10 +430,10 @@ the phase terminates.
 
 The performance overhead of \texttt{calculateWhatToCache()} is
 negligible since it only needs to identify which $CLN$ data structures have the highest hit counts,
-and typically, the applications access only a few data structures.
+and typically, applications only access a few data structures.
 
 Most of the overhead of the caching layer occurs in the function \texttt{accessThroughCache()}. 
-For accesses to data structures that are not cached, the performance overhead entails
+For accesses to non-cached data structures, the performance overhead entails
 the execution of four extra machine instructions.
 However, accesses to cached data structures incur significantly more overhead in some cases; e.g., when evicting a cache line.
 Our experiments indicate that the caching layer increases the number of instructions issued by 25\%
@@ -482,7 +481,7 @@ and invalidates the cache lines.
 
 By executing an {\it atomic instruction}, a thread can read, modify, and write back a data in GPU
 memory atomically.
-We extract the data structures that might be accessed by atomic instructions at compile time and mark them as not cacheable by S-L1.
+We extract the data structures that might be accessed by atomic instructions at compile time and mark them as not cacheable.
 %We insert an overloaded version of \texttt{flush()} before each atomic operation.
 %The overloaded version of \texttt{flush()} has two arguments: the \texttt{address} of the memory location
 %accessed by the atomic operation and the associated data structure \texttt{identifier}.
