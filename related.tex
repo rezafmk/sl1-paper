@@ -1,0 +1,50 @@
+\section{Related work}
+\label{sec:related}
+
+A large body of work focuses on using shared memory to increase the performance of applications in
+an application centeric way~\cite{che2009rodinia, tolke2008teraflop, suchard2010understanding, walters2009evaluating,
+rodrigues2008gpu, lin2010accelerating, Khorasanigpu}. For instance, Nukada et al. propose an
+efficient 3D FFT that uses shared memory to exchange data efficiently between threads~\cite{fftgpu}.
+
+Other work studies more general approaches to harness the benefits of shared memory, typically by
+providing libraries or compile time systems that use shared memory as a scratch-pad to optimize the
+memory performance of applications~\cite{Baskaran, YangCompiler, ueng2008cuda, Khangpu, moazeni2009memory,
+ji2011using}.
+For instance CudaDMA provides a library targeting scientific applications that allows the programmer
+to stage data in shared memory and use the data from there~\cite{bauer2011cudadma}. A producer
+consumer approach is proposed where some warps only load the data in shared memory (producer)
+and others only do the computation (consumer). What we achieve with S-L1 can also be achieved with
+CudaDMA, however in CudaDMA the programmer is responsible to use the API manually, set the number of
+producer and consumer threads, and assign the proper size of shared memory to different threads.
+
+Yang et al. propose a series of compiler optimizations, including vectorization and data
+prefetching, to improve the bandwidth of GPU memory~\cite{YangCompiler}. In particular, they provide
+a technique in which uncoalesced memory accesses are transformed to coalesced ones using shared
+memory for staging.
+
+Others have also studied the characteristics of GPU memory and GPU
+caches~\cite{wongDomestifying, Gaurgpu}. Jia et al.
+characterize GPU L1 cache locality in Nvidia GPUs and provide a taxonomy for reasoning about
+different types of access patterns and how they might benefit from L1
+caches~\cite{jia2012characterizing}.
+Tore et al. provides insights into how to tune the configuration of GPU threads to achieve higher
+cache hit rates and also offers an observation on how the L1 impacts a handful of simple
+kernels~\cite{torres2011understanding}.
+
+%They also provide a compile-time algorithm to identify an application's memory access pattern and to use
+%that information to configure cache usage (by not caching some memory accesses). The disadvantage of
+%their approach is that they still use the hardware L1 cache which gets thrashed even when memory
+%accesses are to only one data structure. Moreover, since their analysis is done at compile time,
+%they are unable to capture any locality with input data dependence.
+
+
+%Wong et al. uses michrobenchmarking to reverse engineer the undocumented features of NVIDIA GPUs,
+%including their memory structures and cache parameters~\cite{wongDomestifying}.
+
+%A study conducted before GPU L1 caches were introduced, proposes a software-managed L1 cache for
+%sum-product solver application. The proposed cache is read-only and direct-map, where the entire
+%cache space is shared among all threads~\cite{silberstein2008efficient} \todo{we can exclude this}.
+
+Finally, some studied the potential architectural changes that could improve the GPU caching
+behavior, including a recent study that analyzes potential coherent models for GPU L1
+caches~\cite{singh2013cache}.

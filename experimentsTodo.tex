@@ -1,0 +1,20 @@
+What experiments can we show the results for?
+
+- On a single SM, run memory accesses that are not coalesced.
+
+- Running a synthetic benchmark, 1 thread block, increasing the number of threads, accessing non-coalesced data and 
+observe the cache hit rate. Assigning two blocks (16 blocks in total to have two blocks per SM) and observing the same 
+behavior.
+
+
+- A synthetic benchmark that runs blocks with full threads in each incrementally on vairous SMs to observe the bandwidth.
+First, doing in a way that accesses only access DRAM (all L2 misses), then adding more SMs to the picture, and observing if 
+for each addition of SM we get more bandwidth or not. Then, doing the same exeperiment where all accesses are L2 hits. The point
+of this experiment is to see how much of the bottleneck is from DRAM. Ideally, the experiment shows that if accesses are DRAM-only,
+then DRAM becomes the bottleneck, but if they are L2-only, then the SMs memory bus is the bottleneck. And then we can 
+conclude that "since applications are somewhere between these two modes (some of the accesses are to DRAM and some are serviced
+by the L2), then scenarios exists that SM becomes the bottleneck.
+
+
+
+

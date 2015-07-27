@@ -1,0 +1,488 @@
+\section{S-L1 Design and Implementation} \label{sec:design}
+\subsection{Overview}
+\label{sec:overview}
+S-L1 is a level 1 cache implemented entirely in software.
+It uses the space available in each SMX's shared memory, which has the same access latency as the
+hardware L1.
+We also considered using SMX's texture cache, but it is a hardware-managed, read-only cache and
+thus, does not suit S-L1 needs.% and  \todo{... say why we did not use it ...}
+
+The design of S-L1 is based on three key design elements.
+First, the cache space is partitioned into thread-private cache segments, each containing one or
+more cache lines. 
+The number of cache lines in each segment is determined dynamically at runtime based on the
+amount of available shared memory, the number of threads running in the SMX, and the size of the cache
+line. 
+The decision to use thread-private cache segments is based on the fact % that all threads execute the same code \todo{Unclear to me why this matters}, and the fact 
+that
+inter-thread data sharing is rare in the streaming applications we are targeting. Therefore, the threads mostly
+process data independently in disjoint locations of memory.
+Allowing all threads to share the entire cache space would likely result in unnecessary collisions.
+
+Secondly, we use relatively small cache lines. 
+The optimal cache line size depends to a large extent on the applications' memory access patterns.
+Larger cache lines perform better for applications exhibiting high spacial locality,
+but they perform poorer for applications with low spacial locality due to ($i$) the extra overhead
+of loading the cache lines requiring multiple memory transactions and ($ii$) the increased cache
+thrashing because fewer cache lines are available.
+ 
+We decided on using 16-byte cache lines after experimenting with different cache line sizes --- see
+Section~\ref{sec:cachelineeffect}. 
+This size works well because 16B is the widest load/store size available on modern GPUs,
+allowing the load/store of an entire line with one memory access.
+Moreover, the use of larger lines is constrained by the fact that the size of shared memory is
+limited --- the most recent GPUs only have 48KB of shared memory per SMX for up to 2,048 threads.
+
+Thirdly, we only cache a limited number of data structures.\footnote{
+    In this context, each argument to the GPU kernel that points to data is referred to as a data structure. 
+    For example, matrix multiply might have three arguments a, b and c referring to three matrices;
+    each is considered a data structure.}
+The number of cache lines allocated to each thread ($CLN$) determines how many data structures we cache.
+$CLN$ is calculated at runtime as
+\begin{center} 
+[$(shMemSizePerSM / numThreadsPerSM) / cacheLineSize$]
+\end{center}
+where $shMemSizePerSM$ is the amount of shared memory available per SMX, $numThreadsPerSM$ is the
+total number of threads allocated on each SMX, and $cacheLineSize$ is the size of the cache line;
+i.e., 16 bytes in our current design. 
+
+The amount of shared memory available for the S-L1 cache depends on how much shared memory has previously been allocated by the application.
+The application can allocate shared memory statically or dynamically at run time.
+Hence, a mixed compile-time/runtime approach is required to identify how much shared memory remains available for S-L1.
+$NumThreadsPerSM$ is calculated at runtime, in part by using the configuration
+the programmer specifies at kernel invocation
+and in part by calculating the maximum number of threads that can be allocated on each SMX which in
+turn depends on the resource usage of GPU threads (e.g. register usage) and available
+resources of SMX, which is extracted at compile-time and runtime, respectively.
+
+Once the number of cache lines per thread -- $CLN$ -- is determined, up to that many data structures are marked as S-L1 cacheable and a separate cache line is assigned to each.\footnote{
+	In principle, multiple cache lines could be assigned to a data structure, 
+	but we found this does not benefit the streaming applications we are targeting.}
+Data structures that are not marked will not be cached and are accessed directly from memory. 
+If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by  the application), no cache lines are assigned to threads (i.e.
+$CLN = 0$), so the software cache is effectively disabled. 
+
+To determine which data structures to cache, we evaluate the benefit of caching the data of each
+data structure using a short monitoring phase at runtime.
+In the monitoring phase, the core computation of the application is executed for a short period of
+time, during which a software cache for each data structure and thread is simulated to count the number of cache hits.
+When the monitoring phase terminates, the $CLN$ data structures with the highest cache hit counts
+will be marked as cached. 
+The code required for the monitoring phase is injected into existing applications using straightforward
+compiler transformations. 
+
+
+
+\subsection{Code Transformations}
+The compiler transforms the main loop(s) of the GPU kernel into two loop slices. 
+The first loop slice is used for the monitoring phase, where the computation is executed for a short
+period of time using the cache simulator.
+After the first loop slice terminates, the data structures are ranked based on their corresponding
+cache hit counts, and the top $CLN$ data structures are selected to be cached in S-L1. 
+The second loop slice then executes the remainder of the computation using S-L1 for the top $CLN$
+data structures.
+
+The following example shows a sample transformation:
+%\todo{indent this code, cause it looks awful this way. To save space, have the opening squiggly bracket at the end of the previous line.}
+
+{\scriptsize
+\begin{flushleft}
+\verb%  //Some initialization%
+\\ \verb%  for(int i = start; i < end; i ++) {%
+\\ \verb%       char a = charInput[i];%
+\\ \verb%       int b = intInput[i];%
+\\ \verb%   %
+\\ \verb%       int e = doComputation(a, b);%
+\\ \verb%       intOutput[i] = e;%
+\\ \verb%  }%
+\\ \verb%  //Some final computation%
+\end{flushleft}
+}
+
+\noindent
+is transformed into:
+
+{\scriptsize
+\begin{flushleft}
+\verb%  //Some initialization%
+\\ \verb%  cacheConfig_t cacheConfig;%
+\\ \verb%  int i = start;%
+\\ \verb%  %
+\\ \verb%  //slice 1: monitoring phase%
+\\ \verb%  for(; (i < end) && (counter<THRESHOLD); i ++) {%
+\\ \verb%       char a = charInput[i];%
+\\ \verb%       simulateCache(&charInput[i], 0, &cacheConfig);%
+\\ \verb%       int b = intInput[i];%
+\\ \verb%       simulateCache(&intInput[i], 1, &cacheConfig);%
+\\ \verb%%
+\\ \verb%       int e = doComputation(a, b);%
+\\ \verb%       intOutput[i] = e;%
+\\ \verb%       simulateCache(&intOutput[i], 2, &cacheConfig);%
+\\ \verb%  }%
+\\ \verb%  calculateWhatToCache(&cacheConfig, availNumCacheLines);%
+\\ \verb%  //slice 2: rest of the computation%
+\\ \verb%  for(; i < end; i ++)%
+\\ \verb%  {%
+\\ \verb%       char a = *((char*) accessThroughCache(&charInput[i], 0,%
+\\ \verb%                                &cacheConfig));%
+\\ \verb%       int b = *((int*) accessThroughCache(&intInput[i], 1, %
+\\ \verb%	                           &cacheConfig));%
+\\ \verb%%
+\\ \verb%       int e = doComputation(a, b);%
+\\ \verb%%
+\\ \verb%       *((int*) accessThroughCache(&intOutput[i], 2,%
+\\ \verb%	 	               &cacheConfig)) = e;%
+\\ \verb%  }%
+\\ \verb%  flush(&cacheConfig);%
+\\ \verb%  //Some final computation%
+\end{flushleft}
+}
+
+%\begin{verbatim}
+%
+%//Some initialization
+%for(int i = start; i < end; i ++)
+%{
+     %char a = charInput[i];
+     %int b = intInput[i];
+ %
+     %int e = doComputation(a, b);
+     %intOutput[i] = e;
+%}
+%//Some final computation              
+%\end{verbatim}
+%}
+
+
+
+%{\footnotesize
+%\begin{verbatim}
+%//Some initialization
+%cacheConfig_t cacheConfig;
+%int i = start;
+%
+%//slice 1: monitoring phase
+%for(; (i < end) && (counter<THRESHOLD); i ++)
+%{
+    %char a = charInput[i];
+    %simulateCache(&charInput[i], 
+         %0, &cacheConfig);
+    %int b = intInput[i];
+    %simulateCache(&intInput[i], 
+         %1, &cacheConfig);
+%
+    %int e = doComputation(a, b);
+%
+    %intOutput[i] = e;
+    %simulateCache(&intOutput[i], 
+        %2, &cacheConfig);
+%
+%}
+%
+%calculateWhatToCache(&cacheConfig, availNumCacheSegments);
+%
+%//slice 2: rest of the computation
+%for(; i < end; i ++)
+%{
+    %char a = *((char*) accessThroughCache(
+           %&charInput[i], 0, &cacheConfig));
+    %int b = *((int*) accessThroughCache(
+           %&intInput[i], 1, &cacheConfig));
+%
+    %int e = doComputation(a, b);
+%
+    %*((int*) accessThroughCache(
+           %&intOutput[i], 2, &cacheConfig)) = e;
+%}
+%flush(&cacheConfig);
+%//Some final computation
+%\end{verbatim}
+%}
+\vspace{-0.4cm}
+% {\bf Monitoring phase:}
+\subsubsection{Monitoring phase}
+In the monitoring loop, a call to \texttt{simulateCache()} is inserted after each memory access.
+This function takes as argument the address of the memory being accessed, a {\it data structure identifier},
+and a reference to the {\it cacheConfig} object, which stores all information collected during the
+monitoring phase.
+The {\it data structure identifier} is the identifier of the data structure accessed in the
+corresponding memory access, and 
+is assigned to each data structure statically at compile time.
+%the compile.
+%identifies individual data structures by extracting the pointers from kernel arguments. 
+
+The pseudo code of \texttt{simulateCache()} is listed below. 
+This function keeps track of which data is currently being cached in the cache line,
+assuming a single cache line is allocated for each thread and data structure,
+and it counts the number of cache hits and misses that occurred.
+To do this, \texttt{cacheConfig} contains, for each data structure and thread, an address variable
+identifying the memory address of the data that would currently be in the cache,
+and two counters that are incremented whenever a cache hit or miss occurs, respectively.
+On a cache miss, the address variable is updated with the memory address of the data that would be
+loaded into the cache line.
+
+\vspace{-0.2cm}
+{\scriptsize
+\begin{flushleft}
+\verb%  simulateCache(addr, accessId, cacheConfig) {%
+\\ \verb%       addr /= CACHELINESIZE;%
+\\ \verb%%
+\\ \verb%       if(addr == cacheConfig.cacheLine[accessId].addr)%
+\\ \verb%            cacheConfig.cacheLine[accessId].hit ++;%
+\\ \verb%       else {%
+\\ \verb%            cacheConfig.cacheLine[accessId].miss ++;%
+\\ \verb%            cacheConfig.cacheLine[accessId].addr = addr;%
+\\ \verb%       }%
+\\ \verb%  }%
+\end{flushleft}
+}
+
+
+\vspace{-0.2cm}
+%{\footnotesize
+%\begin{verbatim}
+%simulateCache(addr, accessId, cacheConfig) {
+     %addr /= CACHELINESIZE;
+%
+     %if(addr == cacheConfig.cacheLine[accessId].addr)
+        %cacheConfig.cacheLine[accessId].hit ++;
+     %else {
+        %cacheConfig.cacheLine[accessId].miss ++;
+        %cacheConfig.cacheLine[accessId].addr = addr;
+     %}
+%}
+%\end{verbatim}
+%}
+
+The monitoring phase is run until sufficiently many memory accesses have been simulated so that the
+behavior of the cache can be reliably inferred. 
+To do this, we simply count the number of times \texttt{simulateCache()} is called by each thread;
+once it reaches a predefined threshold for each thread, the monitoring phase is exited.
+This pre-defined threshold is set to 300 in our current implementation.\footnote{
+	This method of statically setting the duration of monitoring phase works 
+	well for regular GPU applications such as the ones we are targeting, but
+	more sophisticated methods may be required for more complex,  
+	irregular GPU applications. 
+	Moreover, while we only run the monitoring phase once, it may be beneficial
+	to enter into a monitoring phase multiple times during a long running kernel 
+	to adapt to potential changes in the caching behavior.}
+% Note: your description below cannot be:
+% a flag is set by the \texttt{simulateCache()}
+% and the corresponding thread exits the monitoring loop. 
+
+
+
+
+
+\subsubsection{\bf Determining what to cache} 
+In the general case, we mark the $CLN$ data structures with the highest cache hit counts to be cached
+in S-L1.
+However, there are two exceptions. 
+First, we distinguish between read-only and read-write data structures.
+Read-write data structures incur more overhead, since dirty bits need to be maintained and dirty
+lines need to be written back to memory.
+Hence, we give higher priority to read-only data structures when selecting which structures to
+cache.
+Currently, we select a read-write data structure over a read-only data structure only
+if its cache count rate is twice that of the read-only data structure, because accesses to read-write
+cache lines involve the execution of twice as many instructions on average.
+
+Secondly, in our current implementation, we only cache data structures if it has a cache hit rate
+above 50\%. A hit rate of more than 50\% means that, on average, the cache lines are reused at least once
+after loading the data due to a miss.
+We do this because otherwise the overhead of the software implementation will not be amortized by faster memory accesses.
+%\todo{replace XX and explain why the XX}.
+
+\subsubsection{Computation phase}
+In the second loop slice, the compiler replaces all memory accesses with calls to
+\texttt{accessThroughCache()}. 
+This function returns an address, which will either be the address of the data in the cache, or the
+address of the data in memory, depending on whether the accessed data structure is cached or not. 
+%\todo{The following sentence is BS and should be cut.}
+%Note that this corresponds to the C-level representation of the transformations; 
+%the compiler in-lines calls to \texttt{accessThroughCache()}, so instead of first calling
+%\texttt{accessThroughCache()}and then using the addresses it returns, the data is directly accessed.
+A simplified version of the \texttt{accessThroughCache()} is as follows:
+
+{\scriptsize
+\begin{flushleft}
+\verb%  void* accessThroughCache(void* addr, int accessId,%
+\\ \verb%                    cacheConfig_t* cacheConfig)%
+\\ \verb%  {%
+\\ \verb%       if(cacheConfig.isCached[accessId] == NOT_CACHED) {%
+\\ \verb%           return addr;%
+\\ \verb%       }%
+\\ \verb%       else {%
+\\ \verb%           //If already cached, then simply return the %
+\\ \verb%           //address within the cache line%
+\\ \verb%           if(alreadyCached(addr, cacheConfig.cacheLine[accessId])) {%
+\\ \verb\                return &(cacheConfig.cachelines[accessId].\
+\\ \verb\                                data[addr % 16]);\
+\\ \verb%           }%
+\\ \verb%           //requested data is not in the cache, so, %
+\\ \verb%           //before caching it we need to evict current data.%
+\\ \verb%           else {%
+\\ \verb%              //If not dirty, simply overwrite. If dirty, %
+\\ \verb%              //first dump the dirty data to memory%
+\\ \verb%%
+\\ \verb%              if(cacheConfig.cachelines[accessId].dirty) {%
+\\ \verb%                 dumpToMemory(cacheConfig.cachelines[accessId]);%
+\\ \verb%              }%
+\\ \verb%              loadNewData(addr, cacheConfig.cachelines[accessId]);%
+\\ \verb%              return &(cacheConfig.cachelines[accessId].%
+\\ \verb\                         data[addr % 16]);\
+\\ \verb%          }%
+\\ \verb%      }%
+\\ \verb%  }%
+\end{flushleft}
+}
+
+%{\footnotesize
+%\begin{verbatim}
+%void* accessThroughCache(void* addr, int accessId, 
+           %cacheConfig_t* cacheConfig)
+%{
+    %if(cacheConfig.isCached[accessId] == NOT_CACHED)
+    %{
+        %return addr;
+    %}
+    %else
+    %{
+      %//If already cached, then simply return the 
+      %//address within the cache segment
+      %if(alreadyCached(addr, cacheConfig.cacheLine[accessId]))
+      %{
+          %return &(cacheConfig.cacheSegments[accessId].
+                      %data[addr % 16]);
+      %}
+      %//requested data is not in the cache, so, 
+      %//before caching it we need to evict current data.
+      %else 
+      %{
+          %//If not dirty, simply overwrite. If dirty, 
+          %//first dump the dirty data to memory
+%
+          %if(cacheConfig.cacheSegments[accessId].dirty)
+          %{
+            %dumpToMemory(cacheConfig.cacheSegments[accessId]);
+          %}
+          %loadNewData(addr, cacheConfig.
+          %cacheSegments[accessId]);
+          %return &(cacheConfig.cacheSegments[accessId].
+                      %data[addr % 16]);
+      %}
+    %}
+%}
+%\end{verbatim}
+%}
+
+\noindent
+If the data of a cached data structure is not found in the cache line, then the current contents of the cache line is evicted before new
+data is loaded into the cache line from memory.  
+When evicting a line, its dirty bit is checked if the corresponding data structure is read-write. 
+If not set, the cache line is simply overwritten by the new data.
+If set, the modified data is written back to memory before loading the new data.
+We keep a bitmap (in registers) to identify which portions of the cache line are modified, so that only those need
+to be written back; 
+this also guarantees that if two different threads cache the same line (in different  S-L1 lines) and
+modify different potions of the cache line, they will not overwrite each others data.
+Atomic bitwise operations use the bitmap as a write mask to perform the data write-backs.
+%\todo{check to see if this last sentence is correct}
+
+%TODO: move this parag to after the second loop is described
+A call to \texttt{flush()} is inserted after the second loop slice to flush the modified cache lines to memory and invalidate all cache lines before the application terminates.
+
+Extra overhead can be avoided if the pointers to data structures, provided as arguments to the GPU
+kernel, are not aliased. 
+Programmers can indicate this is the case by including the \texttt{restrict} keyword with each
+kernel argument. 
+If this keyword is not included then the caching layer will still work properly, albeit 
+with extra overhead because it has to be assumed that the pointers may be aliased,
+in which case the caching layer will need to perform data lookups in all cache lines assigned to the same thread for
+each memory access --- even for memory accesses to uncached data structures.
+
+
+
+\subsection{S-L1 overheads}
+When evaluating S-L1, the following overheads need to be considered:
+
+
+\noindent
+{\bf Monitoring phase:} 
+Our experiments show that the performance overhead of the monitoring phase is relatively low --- an
+average of less than 1\% was observed in the 10 applications we experimented with (see
+Section~\ref{sec:sl1overheadsresults}). 
+The overhead is low because the monitoring phase only runs for a short period of time and because
+the code of \texttt{simulateCache()} is straightforward and typically does not incur additional
+memory accesses since all variables used in \texttt{simulateCache()} are located in statically
+allocated registers. 
+In terms of register usage, the monitoring phase requires three registers per data structure/simulated
+cache line: one for the mapped address of the cache line in memory and two to keep the cache hit and
+miss counters. 
+These registers are only required during the monitoring phase and will be reused after
+the phase terminates.
+
+\noindent
+{\bf calculateWhatToCache():} 
+The performance overhead of \texttt{calculateWhatToCache()} is
+negligible since it only needs to identify which $CLN$ data structures have the highest hit counts,
+and typically, the applications access only a few data structures.
+
+\noindent
+{\bf accessThroughCache():} 
+Most of the overhead of the caching layer occurs in this function. 
+For accesses to data structures that are not cached, the performance overhead entails
+the execution of four extra machine instructions.
+However, accesses to cached data structures incur more significant overhead since a large body of
+code needs to be executed in some cases; e.g., when evicting a cache line.
+Our experiments indicate that the caching layer increases the number of instructions issued by 25\%
+on average over the course of the entire application (see Section~\ref{sec:sl1overheadsresults}).
+This overhead can indeed negatively impact the overall performance of an application if it is not
+amortized by the lower access times offered by S-L1, and the overhead is exacerbated if the
+application's throughput is already limited by instruction-issue bandwidth.
+
+In terms of register usage, \texttt{accessThroughCache()} requires three additional registers per
+data structure and thread: one for the memory address of the data currently being cached, one for
+the write bitmap (which also serves as the dirty bit), and one for the data structure identifier.
+(If the data structure is not cached, the value of the last register will be -1). 
+As an optimization, we do not allocate bitmap registers for read-only data structures. Additionally,
+since data structures that are not cached do not access the bitmap and address registers, the
+compiler might spill them to memory, without accessing them later, thus reducing the register usage
+of uncached data structures to 1.
+The recent GPU architectures (e.g. {\it Kepler}) have 65,535 registers per SMX and can support at
+most 2,048 threads, in which case the S-L1 caching layer would, in the worst case, use up to 6\% and 9\% of the total
+number of available registers for cached read-only and read-write data structures, respectively. 
+% For example, an application that has 2 read-only and 2 read-write data structures,
+% needs to put aside up to 31\% of registers available to it for the caching layer.
+\vspace{-0.3cm}
+
+\subsection{Coherence considerations}
+
+Since each thread has its own private cache lines, cached data will not be coherent across
+cache lines of different threads. 
+Thus, if two threads write to the same data item cached separately, the correctness of the program
+might be compromised.
+Fortunately, the loose memory consistency model enforced by GPUs makes it easy to maintain the required level of consistency for cache accesses.
+We follow two simple rules to maintain the correctness of the program:
+(a)~we flush the entire cache on {\it memory fence instructions} and (b)~we evict the cache lines containing data targeted by atomic instructions before the instruction executes.
+%\todo{fact check (b)}
+
+Executing a {\it memory fence instruction} enforces all memory writes that were performed before the
+instruction to be visible to all other GPU threads before the execution of the next instruction. 
+GPGPU programmers are required to explicitly use these instructions if the application logic relies
+on a specific ordering of memory reads/writes. 
+We implement this by inserting a call to \texttt{flush()} immediately before each memory fence
+instruction, which flushes the contents of the modified cache lines to memory
+and invalidates the cache lines by setting their associated mapped addresses to zero.
+
+By executing an {\it atomic instruction}, a thread can read, modify, and write back a data in GPU
+memory atomically.
+We insert an overloaded version of \texttt{flush()} before each atomic operation.
+The overloaded version of \texttt{flush()} has two arguments: the \texttt{address} of the memory location
+accessed by the atomic operation and the associated data structure \texttt{identifier}.
+It flushes the cache line if (and only if) the cache line contains the data pointed to by
+\texttt{address}~\cite{jia2012characterizing}.
+
+
+
+

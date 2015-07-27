@@ -1,0 +1,17 @@
+\begin{abstract}
+GPU L1 caches are ineffective for data-intensive GPGPU applications, because they are too small (e.g., 48K per 192 processor cores), and their cache lines are too large (e.g., 128B).
+This results in excessive cache trashing and a low hit rate, given the large number of threads that are expected to run on the GPU.
+GPU L1 caches are so ineffective that recent GPU models have L1 caching of application data disabled by the vendor.
+The ineffectiveness of the L1, coupled with the long latencies to access L2 and DRAM, makes the GPU memory hierarchy the primary bottleneck for data-intensive applications,
+resulting in low core utilization and poor application performance.
+
+In this paper we propose and evaluate an L1 cache for GPUs implemented entirely in software, using the on-chip scratch-pad memory called ``shared memory''.
+No changes to GPU source code is required --- compiler transformations insert the necessary code.
+Initial performance evaluation suggests that despite the 8\% performance overhead associated with 
+our software-based caching layer, we were able to achieve speedups of 
+between 0.89 and 6.4 (2.45 avg) on ten GPU-local streaming applications.
+Combining software-L1 with BigKernel, the fastest known technique accelerating GPU applications processing large data sets located in CPU memory,
+leads to speedups between 1.04 and 1.45 (1.18 avg.) over BigKernel alone, and speedups bewteen 1.07
+and 11.24 (4.32 avg.) over the fastest CPU multicore implementations.
+\end{abstract}
+

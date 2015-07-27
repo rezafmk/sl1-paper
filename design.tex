@@ -1,0 +1,516 @@
+\section{Design and Implementation}
+
+We rely on three key ideas to improve the effectivenss of our software L1 cache scheme:
+
+{\bf Selective caching:} given the small and variable size of on-chip memories in modern GPUs, we
+selectively cache the data of some data structures to prevent the cache from being thrashed. To
+determine what data to cache, two parameters are considered: (1) how much cache space is available
+and (2) how beneficial caching the data of each data structure is. The first parameter is determined
+using a combination of compile-time and runtime calculations presented in Section~\ref{}. The second
+parameter is determined by simulating the effectivenss of the cache separately for each data
+structure.
+
+
+{\bf Private cache segments:} Instead of sharing the entire cache among all threads resident in a
+block, we partition the cache space among threads so that each thread has its own private
+cache-line(s). This prevents threads from evicting each other's data due to mapping conflicts.
+
+
+{\bf Smaller cache-lines:} more smaller cache-lines will be squeezed in a fixed cache space. We
+performed several experiments to determine a proper size for cache segments and found 16-bytes to
+result in a higher overall performance, mainly because 16-bytes is the widest load/store size
+available on modern GPUs -- and therefore we can load/store the entire cache segment in one memory
+access -- and also because it is not too small given the typical size of shared memory per thread on
+modern GPUs.\footnote{The most recent GPUs have 48KB of shared memory per SM. Given the GPU hardware
+can schedule from 1-2048 threads on each SM, each thread could eventually get from 48KB-24B of
+shared memory.} 
+
+
+Based on the available size of shared memory per thread, each thread will be assigned a number of
+cache-lines, denoted by $CL$. $CL$ is calculated as [$(shMemSize / numThreads) / cacheLineSize$]
+where the $shMemSize$ is the available size of shared memory in each SM, $numThreads$ is the number
+of resident threads in each SM, and $cacheLineSize$ is the size of each cache-line, i.e. 16-bytes in
+our current design. The available size of shared memory is calculated at runtime by probing the
+hardware to determine how much shared memory is avaialable on the running GPU and subtract from it
+the portion that is already in use by the application.\footnote{The portion of shared memory in use
+by the application must be determined using a mixed compile-time and runtime approach, as
+programmers can allocate shared memory both statically (which could be determined at compile-time)
+and dyanmically (which is only known at runtime).} $numThreads$ is also calculated at runtime, using
+the configuration programmer specifies at kernel invocation. If the available size of shared memory
+per thread is less than $cacheLineSize$ (probably because the shared memory is
+extensively in use by the application code), no cache-line is assigned to threads (i.e. $CL = 0$)
+and the caching layer becomes disabled.
+
+Once the number of cache-lines per thread -- $CL$ -- is determined, up to that number of data
+structures are selected and a separate cache-line is assigend to each. To determine which data
+structures to select, we evaluate the effectiveness of cache for each data structure and select
+those that yield the highest benefit from being cached. To do that, the core computation of the
+kernel is executed for a short time while simulating giving a separate cache segment to each data
+structure, and then collecting the cache hits associated with each cache segment/data structure. The
+higher the cache hits for a data strcuture, the more beneficial selecting that data structure to be
+cached.
+
+
+The code required for simulating the cache and evaluating the effectiveness of the cache for each
+data structure is injected into existing applications using straightforward compiler transformations.
+In these transformations, compiler takes the main loop(s) of an application as its core computation,
+and breaks it up into two loops. The first loop performs the computation for a short time while
+doing the cache simulation. After the first loop terminates, the results of the simulation (i.e.
+cache hits for each data structure) is evaluated and the top $CS$ data structures that bring the
+highest cache hits are selected to be assigned a cache-line. The second loop then performs the
+rest of the computation while using the assigned cached segments for the memory accesses of the
+selected data structures.
+
+
+To provide more detail using a simple example, consider the following kernel:
+
+{\footnotesize
+
+\begin{verbatim}
+
+//Some initialization
+for(int i = start; i < end; i ++)
+{
+   char a = charInput[i];
+   int b = intInput[i];
+ 
+   int e = doComputation(a, b);
+   output[i] = e;
+}
+//Some final computation
+\end{verbatim}
+}
+
+
+It will be transformed into something like this
+
+{\footnotesize
+\begin{verbatim}
+cacheConfig_t cacheConfig;
+//Some initialization
+int i = start;
+for(; (i < end) && (counter<THRESHOLD); i ++, counter ++)
+{
+  char a = charInput[i];
+  simulateCache(&charInput[i], 
+       0, CACHEREAD, &cacheConfig);
+  int b = intInput[i];
+  simulateCache(&intInput[i], 
+       1, CACHEREAD, &cacheConfig);
+
+  int e = doComputation(a, b);
+
+  output[i] = e;
+  simulateCache(&output[i], 
+      2, CACHEWRITE, &cacheConfig);
+
+}
+
+
+calculateWhatDataToCache(&cacheConfig, availNumCacheSegments);
+
+for(; i < end; i ++)
+{
+  char a = *((char*) accessThroughCache(
+         &charInput[i], 0, cacheConfig));
+  int b = *((int*) accessThroughCache(
+         &intInput[i], 1, cacheConfig));
+
+  int e = doComputation(a, b);
+
+  *((int*) accessThroughCache(
+         &output[i], 2, cacheConfig)) = e;
+}
+//Some final computation
+\end{verbatim}
+}
+
+
+\subsection{How we simulate the cache}
+
+The core computation of an application is run for a short time while the effectiveness of the cache
+for each data structure is being evaluated separately.
+
+We rely on a runtime scheme to determine what and how much data to cache. The code of this runtime scheme is injected
+into the code of existing applications using straightforward compiler transformations. In these transformations,
+compiler takes the main loop(s) of an application as it core computation, and breaks it down into two loops. The first
+loop performs the computation for a short time while doing the cache simulation, and the second loop performs the rest
+of the computation while using the results of the simulation to determine what and how much data to cache.
+
+\subsection{Working example}
+
+
+\subsubsection{How available size of shared memory is calculated:} 
+
+
+\subsection{Maintaining program correctness}
+
+
+
+
+
+\section{Discussion}
+\subsection{Why runtime and not compile time}
+\subsection{Why having thread-private cache-segments}
+
+to figure out what data is worth caching, mainly by simulating the cache behavior (hit and miss
+rate) separately for each data structure accessed in the code. Once the cache simulation ends, its
+results are analyzed to determine how effective caching is for each data structure. The main
+criteria we follow to determine what data structure to cache is the extent to which caching the data
+of each data structure is estimated to reduce the traffic on memory bus. The code of this runtime
+scheme is injected into existing GPU applications through straightforward compiler transformations.
+
+
+
+our runtime scheme also takes into account how much cache space is available. The
+available size of shared memory available for caching is calculated at runtime and based on that, only data accesses are
+cached that bring the highest benefit.
+
+To avoid thrashing the cache, our caching scheme employes thread-private cache segments. To better understand why
+partitioning a shared cache into smaller thread-private cache segments is a good idea, we need to first divide GPU
+applications into two groups: (1) those that have inter-thread data sharing (neighbor threads access the same data or
+data within the same general vicinity) and (2) those that do not have inter-thread data sharing. We argue that,
+applications that have inter-thread data sharing are less prone to suffer from memory bandwidth-related problems since
+many of their memory accesses can be serviced by a single memory access (coalescing effect), substantially lowering the
+traffic on memory request bus and DRAM. This is thanks to a hardware unit located on GPU multiprocessors called {\it
+coalescing unit} that merges multiple memory requests issued by different threads into a single memory request if they
+fall within the same 128-byte aligned region.
+
+Applications that fall into the second group, however, are more likely to suffer from limited memory bandwidth caused by
+a potentially bottlenecked memory request bus, and therefore, are the main target of our study. Generally, these
+applications should be fine with having a cache with thread-private segments. In fact, they would potentially get a
+higher cache efficiency since no two threads would evict each others data due to a cache mapping collision.
+
+
+\section{Our proposed caching layer}
+
+
+
+Following listing shows an example of how a loop is transformed into two loops and what instructions are injected. 
+The original version of the application:
+
+{\footnotesize
+
+\begin{verbatim}
+
+//Some initialization
+for(int i = start; i < end; i ++)
+{
+  char a = charInput[i];
+  short b = shortInput[i];
+  int c = intInput[i];
+  double d = doubleinput[i];
+
+  int e = doComputation(a, b, c, d);
+  output[i] = e;
+}
+//Some final computation
+\end{verbatim}
+}
+
+Which is transformed into:
+
+{\footnotesize
+\begin{verbatim}
+cacheConfig\_t cacheConfig;
+//Some initialization
+int i = start;
+for(; (i < end) && (counter<THRESHOLD); i ++, counter ++)
+{
+  char a = charInput[i];
+  simulateCache(&charInput[i], 
+       0, CACHEREAD, &cacheConfig);
+  short b = shortInput[i];
+  simulateCache(&shortInput[i], 
+       1, CACHEREAD, &cacheConfig);
+  int c = intInput[i];
+  simulateCache(&intInput[i], 
+       2, CACHEREAD, &cacheConfig);
+  double d = intInput[i];
+  simulateCache(&intInput[i], 
+       3, CACHEREAD, &cacheConfig);
+
+  int e = doComputation(a, b, c, d);
+
+  output[i] = e;
+  simulateCache(&output[i], 
+      4, CACHEWRITE, &cacheConfig);
+
+}
+
+
+calculateWhatDataToCache(&cacheConfig, availNumCacheSegments);
+
+for(; i < end; i ++)
+{
+  char a = *((char*) accessThroughCache(
+         &charInput[i], 0, cacheConfig));
+  short b = *((short*) accessThroughCache(
+         &shortInput[i], 1, cacheConfig));
+  int c = *((int*) accessThroughCache(
+         &intInput[i], 2, cacheConfig));
+  double d = *((double*) accessThroughCache(
+         &doubleinput[i], 3, cacheConfig));
+
+  int e = doComputation(a, b, c, d);
+
+  *((int*) accessThroughCache(
+         &output[i], 4, cacheConfig)) = e;
+}
+//Some final computation
+\end{verbatim}
+}
+
+
+
+During the simulation, each memory access is virtually given a dedicated cache segment to see how well it benefits from
+caching if that cache segment is actually given to it. To do that, cache hit and miss rates for each memory access is
+simulated and recorded in {\it cacheConfig} object. {\it calculateWhatDataToCache()} then uses the recorded values in
+this object to sort the memory accesses in the code based on how effective the cache is for each one of them. For
+instance, in the above example that all data structures are accessed sequentially, the sorted list of memory accesses
+would be: 0, 1, 2, 4, 3 (numbers represent the memory access identifiers given to each memory access in the code).
+It is not difficult to see why the list is sorted this way: when data is accessed sequentially, cache performs better
+for data types that are smaller, as more elements of smaller data types can fit in a cache segment each time (thus, more
+cache hits).
+
+Ideally, one would assign a separate cache segment to each of these memory accesses to potentially improve the
+performance. However, cache space is limited and there is not enough space for all memory accesses to be cached.
+Therefore, {\it calculateWhatDataToCache()} is also given the maximum number of cache segments each thread can have, and
+accordingly, {\it calculateWhatDataToCache()} only selects up to that number of memory accesses (starting from the
+beginning of the list) to be assigned a cache segment.
+
+The maximum number of cache segments available for each thread is calculated at runtime as $availableShMemPerThread /
+cacheSegmentSize$. $availableShMemPerThread$ represents the available size of shared memory per thread, and is
+calculated using three parameters: (i)~how much shared memory space is available per multiprocessor (which might change
+from GPU to GPU), (ii)~how much of it is already in use by the application code, and (iii)~how many threads are
+scheduled on each multiprocessor to share that shared memory space. These parameters can be probed at runtime.
+$cacheSegmentSize$ represents the size of each cache segment, which is 16-bytes in our current design.
+
+We performed several experiments to determine a proper size for cache segments and found 16-bytes to result in a higher
+overall performance, mainly because 16-bytes is the widest load/store size available on modern GPUs -- and therefore we
+can load/store the entire cache segment in one memory access -- and also because it is not too small given the typical
+size of shared memory per thread on modern GPUs.\footnote{The most recent GPUs have 48KB of shared memory per SM. Given
+the GPU hardware can schedule up to 2048 threads on each SM, each thread could eventually get from 48KB-24B of shared
+memory.} Based on the available size of shared memory, each thread can have one or more cache segments assigned to it.
+If the available size of shared memory per thread is less than the $cacheSegmentSize$ (probably because the shared
+memory is already in use by the application code), however, the caching layer becomes disabled.
+
+
+Once the {\it calculateWhatDataToCache()} finishes, {\it cacheConfig} will contain all information required for the
+caching layer to operate. {\it cacheConfig.isCached[accessId]} indicates if a memory access must be cached or not.
+cacheConfig.cacheSegmentIds[accessId] represents the ID of the cache segment that must be used by a memory access in the
+code. Further information regarding each cache segment, such as the address from which the data is cached, actual cache
+space, and dirty bits, can be found in {\it cacheConfig.cacheSegments} array for each cache segment.
+
+When a memory access that is decided not to be cached -- by {\it calculateWhatDataToCache()} -- calls the {\it
+accessThroughCache()}, then the address of the accessed data in DRAM is returned, causing the memory access to be
+performed as if no caching layer exists (see the way {\it accessThroughCache()} is used in the above code). However,
+when a memory access that is decided to be cached calls the {\it accessThroughCache()}, then instead of the address of
+data in DRAM, the corresponding address of cached data within the cache segment is returned. Following lists a
+simplified version of the {\it accessThroughCache()} function.
+
+
+{\footnotesize
+
+\begin{verbatim}
+
+void* accessThroughCache(void* addr, int accessId, 
+         cacheConfig\_t* cacheConfig)
+{
+  if(cacheConfig.isCached[accessId] == NOT\_CACHED)
+  {
+    return addr;
+  }
+  else
+  {
+    //If already cached, then simply return the 
+    //address within the cache segment
+    if(alreadyCached(addr, cacheConfig.cacheSegments[
+         cacheConfig.cacheSegmentIds[accessId]]))
+    {
+      return &(cacheConfig.cacheSegments[cacheConfig.
+      cacheSegmentIds[accessId]].data[addr % 16]);
+    }
+    //requested data is not in the cache, so, 
+    //before caching it we need to evict current data.
+    else 
+    {
+      //If not dirty, simply overwrite. If dirty, 
+      //first dump the dirty data to memory
+
+      if(cacheConfig.cacheSegments[cacheConfig.
+             cacheSegmentIds[accessId]].dirty)
+      {
+	        dumpToMemory(cacheConfig.cacheSegments[
+                cacheConfig.cacheSegmentIds[accessId]]);
+      }
+      loadNewData(addr, cacheConfig.cacheSegments[
+        cacheConfig.cacheSegmentIds[accessId]]);
+      return &(cacheConfig.cacheSegments[cacheConfig.
+      cacheSegmentIds[accessId]].data[addr % 16]);
+    }
+  }
+}
+\end{verbatim}
+}
+
+
+\subsection{Maintaining program correctness}
+
+In our caching layer, each thread has its own private cache segment(s), causing the cached data to not be coherent
+across cache segments of different threads. While this is fine for read-only data structures, for data structures that
+also are written to, the correctness of the program might be broken if different threads read and write to memory
+locations that fall within the same cache-line size.
+
+We follow two simple rules to maintain the correctness of the program in our caching layer: (1) flushing the entire
+cache on {\it memory fence instructions} and (2) not caching the location accessed by {atomic instructions}. 
+
+Executing a {\it memory fence instruction} enforces all memory writes that were performed before the instruction to be
+visible by all other GPU threads before the execution of the next instruction continues. Programmers are required to
+explicitly use these instructions if the application logic relies on a specific ordering of memory reads/writes. 
+
+By executing an {\it atomic instruction} a thread can read, modify, and write back a location in GPU memory in a single step without
+allowing other threads to either read or modify the specified location.
+
+Following these two rules will ensure that caching data in private caches would not break the relaxed coherency provided
+by CUDA programming model. (more explanation needed here).
+
+
+
+\subsection{Discussion: runtime scheme vs. compile-time scheme}
+
+Our scheme performs the clustering of memory accesses and cache simulation at runtime. A similar scheme can also be
+designed to work mostly at compile time. In such compile-time scheme, memory accesses are clustered by compiler
+benefiting from compiler analysis and then some of the clusters are chosen to be cached, based on some other
+compile-time analysis that evaluates the locality of memory accesses~\cite{}. We chose the runtime approach in our
+design, mainly because it has more advantages than a static compile-time scheme. Here we list the advantages and
+disadvantages of a runtime caching layer compared to an envisioned compile-time caching layer.
+
+{\bf Advantages:}
+
+\begin{itemize}
+
+\item A runtime scheme is more accurate in terms of evaluating the cache effectiveness for different data accesses.
+Note that given the small size of caches available per thread, the accuracy plays an important role in achieving higher
+caching performance. There are various parameters that our caching scheme relies on, and many of them are best known
+at runtime:
+
+	\begin{itemize}
+
+	\item The available size of shared memory and the number of concurrent threads on each multiprocessor are best
+known at runtime. These parameters help us assign an optimal number of cache segments to each thread to avoid wasting
+cache space, or reducing parallelism envisioned by the programmer.
+
+	\item The pattern of memory accesses are better known at runtime. If location or number of memory accesses rely
+on a runtime value, then the static compiler analysis would be unable to extract them. This is both important to
+grouping the memory accesses into clusters and also important to evaluate the effectiveness of cache for each cluster.
+The code samples listed in next sub-section show example in which static compiler analysis is unable to figure out what
+memory access to group/cache.
+
+	\end{itemize}
+
+\item A runtime scheme is more general as more cache-able memory accesses can be identified at runtime, as opposed to a
+static analysis at compile time in which the analysis can only rely on direct and static address calculations to find
+cache-able data accesses.
+
+
+\item A runtime scheme is easier to apply to an application or modify to cater for custom needs. It is also easier to
+maintain for future GPU architecture/programming model generations. Unlike traditional CPUs, GPU architecture and its
+programming model has undergone rapid and fundamental changes, and are likely to continue evolving at a fast pace. We
+believe, therefore, flexibility of a scheme is a significant advantage.
+
+\end{itemize}
+
+{\bf Disadvantages: }
+
+\begin{itemize}
+
+\item The first two loop slices that perform memory access clustering and cache effectiveness evaluation have some
+overhead. Our experiments show that these two parts impose an average of 3\% overhead on the performance of applications
+listed in Section X.
+
+\item The additional code added to each memory access to check if the access should be cached or not (code inside {\it
+accessThroughCache()}) increases the overall instruction execution significantly. Therefore, if an application's
+performance is already limited by the instruction-issue bandwidth, it might suffer from further performance degradations
+due to our runtime scheme.
+
+\end{itemize}
+
+
+\subsection{Examples}
+
+Here are a few examples to show scenarios in which a compile-time scheme alone might not be able to evaluate the
+effectiveness of cache for some memory accesses:
+
+{\bf Example 1:} 
+
+{\footnotesize
+\begin{verbatim}
+//When n is a runtime value, a compile time scheme is unable 
+//to understand the effectivenessof cache for this memory access.
+sum = 0;
+for(int i = start; i < end; i += BLOCKSIZE)
+{
+  sum += input[i * n];	
+}
+\end{verbatim}
+}
+
+
+
+{\bf Example 2:} 
+
+{\footnotesize
+\begin{verbatim}
+//Based on the value of n and m, a compile time scheme is 
+//unable to find out which data is worth caching (if m is 
+//very small, it is not worth to cache data from input2, 
+//even thoug the accesses to it are sequential)
+sum = 0;
+for(int i = start; i < end; i ++)
+{
+  sum += input[i * n];
+  for(int j = 0; j < m; j += k)
+    sum += input2[j];
+	
+}
+\end{verbatim}
+}
+
+{\bf Example 2:} 
+
+
+{\footnotesize
+\begin{verbatim}
+//Indirect memory accesses cannot be analyzed by a compile 
+//time scheme, thus unable to evaluate the effectiveness 
+//of cache for input and input2 data accesses.
+sum = 0;
+for(int i = start; i < end; i += BLOCKSIZE)
+{
+   sum += input[index[i]];
+   sum += input2[index2[i]];
+}
+\end{verbatim}
+}
+
+
+\subsection{Discussion: GPU compute power is improving faster than its memory subsystem}
+
+We need a subsection like this, somewhere, to emphasize on the need for a better caching system, preferably an on-chip
+caching system (L1).
+
+\subsection{Optimizations}
+
+Using shared memory and registers to avoid accessing memory in cache operations... (to be filled later).\cite{nicepaper3}
+
+
+%In CUDA's memory model, no order is specified in writing the 
+%
+%================ Things yet to discuss =====================
+%- Grouping a number of memory accesses in the code to use the same cache segment.
+%- How we maintain program correctness
+%- What are the performance results.
+%- Why we do it as a runtime system, and not a compile-time system.
+
+

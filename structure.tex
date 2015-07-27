@@ -1,0 +1,94 @@
+\section{Introduction}
+
+\begin{itemize}
+
+\item In our previous experience with Big Data applications, we observed that after PCIe, GPU memory subsystem has the
+highest potential of becoming the main performance bottleneck.
+
+\item Interesting observation we made with those applications is that, even if L2 efficiency is high (very high L2
+hit-rate), still the memory bandwidth is capped by the rate at which GPU SMs can issue memory requests to the memory
+request bus (some brief experimental results to show this).
+
+\item Therefore, the goal is to reduce memory requests that have to leave the SM, either by coalescing memory accesses
+into fewer ones, or by caching data on an on-chip cache. Mentioning that coalescing the memory accesses might not always
+be easy to do by the programmer, given the layout of the data.
+
+\item Reducing memory requests that leave GPU SMs seems to be a necessary approach, as experience shows that computing
+power improves faster than memory performance, on almost all architectures including GPUs. Higher computing power means
+that memory requests are going to be issued at a higher rate than what the memory subsystem can service.
+
+\item In previous work, BigKernel, we showed that on the fly coalescing can significantly increase GPU memory
+performance. Here, we evaluate the benefit of the second approach which is caching on an on-chip cache, which can be
+beneficial both as a general solution and also as an extension to BigKernel.
+
+\item Existing L1 caches are inefficient: they are small, overwhelmed by lots of memory accesses at each time (due to
+high number of concurrent GPU threads and multiple data structures being accessed), and have large-sized cache lines.
+The inefficiency led GPU vendors to disable L1 by default. We show that the performance of our target applications
+hardly benefits from these L1 caches.
+
+\item We propose our own software cache. Key ideas: selective caching, private cache segments, smaller cache segments.
+Elaborating on each key idea, and why we adopt them.
+
+\item Summerize performance results.
+
+
+\end{itemize}
+
+
+\section{GPU processing and memory performance: past, present, future}
+
+\begin{itemize}
+
+\item What happend in the evolution of GPUs in terms of their memory bandwidth, computer power, and number and size of
+caches. What a reasonable trajectory would be for all of these? The goal here is to show that compute power is improving
+faster than memory performance, and therefore, caching is essential to bridge the two.
+
+\item What type of applications were using GPUs in the past, now, and what would they be in future? Emphasizing on BigData
+as a real candidate. Citing our work and other emerging work in this area.
+
+\end{itemize}
+
+
+
+\section{Pinpointing the bottleneck}
+
+Most experiments should be under this section. Giving as much insight as we can. Especially suitable for ASPLOS.
+
+\subsection{Formulating memory access time}
+
+\begin{itemize}
+
+\item Something like this: GPU vendors do not reveal the details of their architectures. Our experiments, though suggest
+a simple model in which meomry request bus can have limited number of outstanding memory requests at each time.
+Additional memory requests would be put in a waiting queue. We formulate the time it takes for a memory access like
+this:
+
+\begin{itemize}
+\item $issue\_time$ + $wait\_time$ (in queue) + $data\_access\_time$
+
+\item $wait\_time$ is a function of ($memory\_request\_issue\_rate$, $1 / data\_access\_time$)
+
+\end{itemize}
+\end{itemize}
+
+\subsection{Existing L1 cache}
+
+\begin{itemize}
+
+\item Experiment results on a few applications, showing cache hit rate when increasing the number of threads.
+
+\item Performance of some applications with and without L1.
+
+\end{itemize}
+
+
+
+\section{Design and Implementation}
+
+%\begin{itemize}
+
+%\item A runtime scheme to determine what and how much to cache. Code injected by compiler.
+
+%\end{itemize}
+
+

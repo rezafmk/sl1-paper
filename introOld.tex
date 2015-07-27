@@ -1,0 +1,71 @@
+\section{Introduction}
+Our research focus is on using Graphical Processing Units (GPUs) to accelerate what is popularly called ``big data'' computations in the commercial world.
+These computations are dominated by functions that filter, transform, aggregate, consolidate, or partition huge input data sets.
+They typically involve simple operations on the input data, are trivially parallelizable, and the input data exhibits no (or very low) reuse.
+In the GPU world these type of computations are referred to as \emph{streaming computations}.
+
+GPUs, on the surface, appear to be ideal accelerators for streaming computations: with their many processing cores, today's GPUs have 10X the compute power of modern CPUs, and they have close to 10X the memory bandwidth of modern CPUs,\footnote{
+	\todo{provide specific evidence this is the case}}
+yet are priced as commodity components.
+However, a number of complications had until recently prevented effective acceleration in practice, including:
+\begin{enumerate}
+\item  GPUs and CPUs have separate memories so that the input data must first be copied over to GPU memory, causing extra overhead;
+\item the PCIe link that connects the two memories has limited bandwidth and transferring data over the PCIe bus at close to theoretically maximum bandwidth is non-trivial; and
+\item the high GPU memory bandwidth can only be exploited when GPU threads executing at the same time access memory in a \emph{coalesced} fashion, where the threads simultaneously access memory locations adjacent to each other.
+\end{enumerate}
+Recent efforts by a number of research groups (including our own) have been able to effectively mitigate the above issues, thus shifting the primary bottleneck from the PCIe link to the GPU-side memory hierarchy~\cite{???,???,???}. 
+For example, BigKernel~\cite{???}  uses a four-stage software pipeline to:
+\begin{itemize}
+\item identify online which data will be accessed during the subsequent computation stage GPU-side so that only data that will be accessed is transferred over the PCIe link;
+\item highly optimize PCIe link throughput; and
+\item maximize the degree of coalesced memory accesses GPU-side by rearranging the data as needed before it is transferred to the GPU. 
+\end{itemize}
+At the same time, BigKernel greatly simplifying the programming model by offering the programmer the illusion of a physical memory space far larger than actually available.
+Using BigKernel on seven realistic streaming computations results in a speedup of between X and Y over the most efficient CPU multicore implementations and between XX and YY over the most efficient single CPU core implementations with an average speedup of XX and YY, respectively.
+
+With the PCIe link no longer the primary bottleneck, the following three factors prevent higher GPU core utilization: 
+First, latency to DRAM and to the off-chip L2 cache is high. 
+For example, on the Nvidia GeForce GTX 680 we used to run our experiments, latency to DRAM and L2 is 340 and 210 cycles, respectively.
+Hardware multithreading can hide some of this latency, but not all of it, as we show in Section~\ref{GPUBehavior}.
+
+Secondly, the L1 caches are entirely ineffective~\cite{??}. 
+They are small; the L1 on the Nvidia GTX 680 can, for example, be configured to be 16K, 32K, or 48K.
+And the cache line size is disproportionally large at 128B.
+Given the large number of executing threads, each issuing multiple memory accesses, cache lines are typically evicted before there is any reuse, causing a high degree of cache thrashing and a low L1 hit rate.
+As an example, Figure~\ref{fig:L1HitRate} depicts the L1 hit rate as a function of the number of threads executing when running the Unix \texttt{upper} utility.
+In fact, the L1 has proven to be so ineffective that some GPU chip sets, like the Nvidia GTX 680, only allow the use of L1 for register spills and stack caching and not for application data.
+If historical trends are any indication (see Section~\ref{GPUArchTrends}), we can not expect GPU L1 caches to become significantly more effective in the near future.
+
+\begin{figure}
+
+\vspace*{4cm}
+
+\caption{L1 hit rate when running \texttt{upper} on an Nvidia XXX YYY.}
+\label{fig:L1HitRate}
+\end{figure}
+
+Thirdly,  many of the big-data computations we are interested in are dominated by character accesses, where a trivial amount of computation is needed per access, yet the access latencies are high given the ineffectiveness (or unavailability) of the L1 cache for application data.
+This is exacerbated by bottlenecks that prevent the full L2 and DRAM bandwidth to be exploited with the target workload, as we will show in Section~\ref{GPUBehavior}.
+The end-result is extremely low GPU core utilization.
+
+In this paper, we address the issues above by proposing and evaluating an L1-level cache implemented entirely in software.
+The software-L1 cache is located in software-managed GPU \emph{shared memory} that has the same access latency as the L1 cache (10 cycles on the Nvidia GTX 680).
+The design of the software-L1 cache is guided by three key principles to deal with the small size of the shared memory (48KB per Nvidia GTX 680 multiprocessor):
+\begin{enumerate}
+\item {\bf Private cache segments}: the software-L1 is partitioned into thread-private cache lines, instead of having all threads share the cache space; 
+\item {\bf Smaller cache lines}: a cache-line size smaller than typical is used 
+to allow a larger number of cache-lines to be shared by concurrent threads; and
+\item {\bf Selective caching}: the data of only a select number of data structures are cached\end{enumerate}
+The objective of this design is to significantly decrease average memory access times and minimize software-L1 cache thrashing.
+It is implemented entirely in software using a fairly straightforward runtime scheme where the code to manage and use the cache is added by using simple compiler transformations.
+The specific parameters of the software-L1 cache are determined at runtime during an initial brief monitoring phase, which also identifies the potential cache hit rate of each data structure.
+After the monitoring phase, the computation is executed using the software-L1 cache for the $n$ data structures that have the highest cache hit rates, where $n$ is selected based on the amount of cache space available to each thread.
+
+Our initial performance evaluation suggests that, despite the performance overhead incurred by the software implementation, many applications substantially benefit from the software-L1. 
+Experiments on 10 applications achieve an average speedup of 50\% when our L1 caching layer is added to their existing code.
+\todo{Expand to summarize all our results...}
+
+This paper is organized as follows....\todo{fill}
+
+
+

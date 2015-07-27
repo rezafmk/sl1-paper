@@ -1,0 +1,39 @@
+\begin{abstract}
+
+%aGPU L1 caches are ineffective for data-intensive GPGPU applications, because they are too small (e.g., 48K per 192 processor cores), and their cache lines are too large (e.g., 128B).
+%This results in excessive cache trashing and a low hit rate, given the large number of threads that are expected to run on the GPU.
+%GPU L1 caches are so ineffective that recent GPU models have L1 caching of application data disabled by the vendor.
+%The ineffectiveness of the L1, coupled with the long latencies to access L2 and DRAM, makes the GPU memory hierarchy the primary bottleneck for data-intensive applications,
+%resulting in low core utilization and poor application performance.
+
+%In this paper we propose and evaluate an L1 cache for GPUs implemented entirely in software, using the on-chip scratch-pad memory called ``shared memory''.
+%No changes to GPU source code is required --- compiler transformations insert the necessary code.
+%Initial performance evaluation suggests that despite the 8\% performance overhead associated with 
+%our software-based caching layer, we were able to achieve speedups of 
+%between 0.89 and 6.4 (2.45 avg) on ten GPU-local streaming applications.
+%Combining software-L1 with BigKernel, the fastest known technique accelerating GPU applications processing large data sets located in CPU memory,
+%leads to speedups between 1.04 and 1.45 (1.18 avg.) over BigKernel alone, and speedups between 1.07
+%and 11.24 (4.32 avg.) over the fastest CPU multicore implementations.
+
+
+GPU L1 caches are ineffective for the streaming, data-intensive GPGPU applications we are targeting.
+They are too small and their cache lines are disproportionally large, resulting in excessive cache trashing and low hit rates given the large number of threads that are expected to run.
+For example,  the L1 on the Nvidia GTX~Titan~Black is at most 48KB per 192 cores and the cache line size is 128B, leaving just two cache lines per core. 
+Together with the relatively high access latencies to L2 and DRAM, this make the GPU memory hierarchy the primary bottleneck for data-intensive streaming applications, resulting in extremely low core utilization.
+Through a number of experiments, we characterize the performance behavior of the Nvidia GeForce Titan Black memory hierarchy and identify some of its bottlenecks.
+
+In this paper we propose and evaluate S-L1, an L1 cache for GPUs implemented entirely in software.
+S-L1 uses the on-chip scratch-pad memory called ``shared memory''. 
+S-L1 learns what and how much data to cache at
+runtime, by performing a brief initial monitoring phase.
+%which has the same access latency as the
+%hardware L1.
+% note: perhaps we should list some key features of S-L1 here? And then remove the last sentence???
+%          e.g., self-learning. selective. etc...
+Compiler transformations are used to insert the code necessary to use the S-L1 so that no changes to GPU source code is
+required.
+Despite the 8\% performance overhead associated with our software-based caching layer, we were able to achieve an
+average speedup of 2.10 on ten GPU-local streaming applications (ranging from a slowdown of 0.05 to a speedup of 6.5).
+
+\end{abstract}
+

@@ -1,0 +1,47 @@
+\subsection{Sharing a cache segment for multiple memory accesses}
+
+Multiple memory accesses in the application code might access memory locations that fall within the same cache-line
+size. Therefore, when simulating the cache behavior, if separate cache segments are given to such access
+identifiers, the simulation results might be skewed. For instance, in the following code, suppose that access
+identifiers 1 and 3 mostly access the data within the same cache-line size:
+
+\begin{verbatim}
+
+for(int i = start; i < end; i ++)
+{
+   int a = data[someAddr()]; //Acess identifier 1
+   int b = data[someAddr()]; //Acess identifier 2
+   int c = data[someAddr()]; //Acess identifier 3
+}
+
+\end{verbatim}
+
+As mentioned before, cache simulation ranks the access identifiers based on how many memory accesses they save if they
+are given a separate cache segment, and only top $n$ access identifiers are chosen to be given a cache segment ($n$ being the
+available number of cache segments). So, suppose that assigning separate cache segments to memory access identifiers 1,
+2, and 3 saves 4, 6, and 4 memory accesses during the simulation, respectively. Therefore, access identifier 2 is
+assumed to exhibit the highest cache benefit, while if a single shared cache segment was to be given to access
+identifier 1 and 3, up to 8 memory accesses could have been saved by the two memory accesses. Sharing a cache segment
+among multiple access identifiers not only better evaluates the cache effectiveness for different access identifiers, it
+frees up more cache segments to be assigned to some other access identifiers.
+
+To consider the potential data sharing among access identifiers, our runtime scheme identifies access identifiers that
+access memory locations in a general vicinity and groups them within the same cluster. The simulation then evaluates
+the cache effectiveness of assigning separate cache segments to each cluster of access identifiers instead of each
+individual access identifier, by assigning the same cache segment to all access identifiers within the same cluster.
+
+
+In our scheme, the clustering is performed right before the cache simulation. More precisely, instead of breaking down
+the main loop of the application into two loops -- one for cache simulation and one for the rest of the computation --
+it is broken down into three loops: the first loop groups the access identifiers into clusters while doing the
+computation for a short while, the second loop simulates the cache behavior for each cluster of access identifiers while
+doing the computation for another short while, and finally the third loop uses the results of the cache simulation to
+run the rest of the computation, only caching some of the clusters' memory accesses.
+
+
+To determine what access identifiers in the code should be grouped into the same cluster, a small hash table is
+allocated in shared memory (or GPU memory, if shared memory is not available enough). Next, each time memory is accessed
+during the first loop, a mapped hash entry in the hash table is marked with the identifier of the memory access in the
+code. After the first loop terminates, a simple algorithm (described in Section X) scans the hash table and groups the
+access identifiers that mostly mapped to the same hash entries.
+

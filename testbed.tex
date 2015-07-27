@@ -1,0 +1,62 @@
+\section{Experimental Setup}
+\label{sec:expSetup}
+
+%Our baseline hardware infrastructure consists of a 3.8GHz Intel Xeon Quad Core E5, connected to 16GB
+%of quad-channel memory clocked at 1800MHz.
+All GPU kernels that are used to evaluate S-L1 were
+executed on an NVIDIA GeForce GTX 680 GPU with 1,536 computing cores each running at 1020MHz
+connected to 2GB of GPU memory. GTX 680 is from the Kerpler family and has 8 multiprocessors each
+with 192 computing cores, 32 LD/ST cores, and 64KB of on-chip memory (of which 48KB is assigned to
+shared memory).
+
+Since L1 cache of GTX 680 is disabled by the vendor, we ran our experiments that examine L1 cache on
+a different GPU: an NVIDIA GTX 560 GPU with 336 computing cores connected to 1GB of GPU memory. GTX
+560 is a Fermi GPU consisted of 7 multiprocessors each with 48 computing cores, 16 LD/ST cores, and
+64kB of on-chip memory. The size of L1 cache can be configured at 16KB or 48KB on this GPU, which is
+set to 48KB (i.e. its maximum) for our experiments.
+
+All GPU-based applications were implemented in CUDA, using CUDA toolkit and GPU driver release
+6.0.37 installed on a 64-bit Ubuntu 12.04 Linux with kernel 3.5.0-23. All applications are compiled
+with the corresponding version of the {\it nvcc} compiler using optimization level three.
+
+We applied S-L1 to ten streaming applications listed in Table~\ref{tab:apps}. Each application, in
+each state (e.g. with and without S-L1) is ran with various different GPU thread configurations and
+the one with the best execution time is picked for that application. We started the tested thread
+configurations from 4 blocks of 128 threads (i.e. 4x128 or 512 threads in total) and increased the
+number of threads by 128 increment, up to 256 blocks of 1024 threads (i.e. 256x1024 or 256K threads
+in total), testing each application in a total of 512 different thread configurations.
+
+
+\begin{table*}[ht]
+{
+\begin{center}
+%{\tiny
+\resizebox{17cm}{2.1cm}
+{
+  \begin{tabular}{|p{2.8cm}|p{14.4cm}|p{3.5cm}|} \hline
+         {\bf Application} & {\bf Description} &  {\bf Used number of data structures}\\
+\hline
+	  {Upper} &   {Converts all text in an input document from lowercase to uppercase.} &  {2}\\  \hline
+	  {WC} &   {Counts the number of words and lines in an input document.} &  {1}\\ \hline
+	  {DNA Assembly} & {merges fragments of a DNA sequence to reconstruct a larger sequence~\cite{dnaassembly}.} & {3}\\ \hline
+	  {Opinion Finder} & {analyzes the sentiments of tweets associated with a given subject (i.e. a set of given keywords)~\cite{wilson2005opinionfinder}} &  {4}\\ \hline
+	  {Inverted Index} & {Builds reverse index from a series of HTML files.} & {3}\\ \hline
+	  {Page View Cout} & {Counts the number of hits of each URL in a web log.} & {3}\\ \hline
+          {MasterCard Affinity} & {finds all merchants that are frequently visited by customers of a target merchant X~\cite{}} & {3}\\ \hline
+	  {Matrix Multiply} & {Calculates the multiplication of two input matrices. This is a naive version and does not use shared memory.} & {3}\\ \hline
+	  {Grep} & {Finds the string matching a given pattern and outputs the line containing that string.} & {2 (1 in shared memory)}\\ \hline
+	  {Kmeans} & {Partitions $n$ particles into $k$ clusters so that particles are assigned to the cluster with the nearest mean.} & {2 (1 in shared memory)}\\ \hline
+  \end{tabular}
+}
+%}
+\end{center}
+}
+\vspace{-0.0cm}
+\caption{Our benchmark streaming applications, thier description, and the number of data structures they use in their main loop.} %title of the table
+\label{tab:apps}
+\vspace{-0.0cm}
+\end{table*}
+
+
+
+

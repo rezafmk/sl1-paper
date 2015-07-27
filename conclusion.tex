@@ -1,0 +1,33 @@
+\section{Concluding Remarks}
+\label{sec:conclusion}
+
+By reverse-engineering the Nvidia GTX~Titan~Black through a series of experiments, we characterized the behavior of the memory hierarchy of modern GPUs.
+We showed that the bandwidth between off-chip memory and GPU SMXs is capped so that the latency of L2/DRAM accesses increases substantially the more memory intensive the application.
+We also showed that raw GPU compute power has been increasing more rapidly than the size of on-chip
+L1 caches.
+As a result, there is a growing need for effective, on-chip caching to reduce the number of memory
+accesses that need to leave each multiprocessor.
+
+In this paper, we proposed S-L1, a GPU level 1 cache which is implemented entirely in software using SMX shared memory.
+S-L1 determines, at run time, the proper size of cache, samples the effectiveness of caching the data of different data structures, and based on that information, decides what data to cache.
+Although the software implementation adds on average 8\% overhead to the applications we tested, our experimental results show that this overhead is amortized by faster average memory access latencies for most of these applications.
+Specifically, S-L1 achieves speedups of between 0.95 and 6.5 (2.10 avg) on ten GPU-local streaming applications.
+Combining S-L1 with BigKernel, the fastest known technique accelerating GPU applications processing
+large data sets located in CPU memory, leads to speedups between 1.07 and 1.45 (1.19 avg.) over
+BigKernel alone, and speedups bewteen 1.07 and 6.37 (3.7 avg.) over the fastest CPU multicore implementations.
+
+While it is understandable that GPU designers need to prioritize optimizations for graphical
+processing and maintain commodity pricing, we believe that our work provides some indications of how
+the GPU designers could enhance current designs to make GPU designs more effective for data
+intensive GPGPU applications.
+The most straightforward enhancement is to significantly increase the size of the L2 --- with its current size it only supports 1-2 cache lines per thread when applications run with the maximum number of online threads allowed.
+\todo{Do we want to say the following?}
+We also believe that a design similar to our S-L1 design could be implemented in hardware in a
+reasonably straightforward way, which would almost entirely eliminate the overhead that our software entails.
+Finally, the size of on-chip caches need to be substantially increased, especially as the number of cores continues to increase.
+And perhaps L1 caches line sizes should be configurable so that smaller sizes can be accommodated.
+
+For future work,  we intend to reduce the overhead of S-L1 by relying more on the compile-time technology. 
+Using compiler technology, we can avoid transforming memory accesses to data structures that are statically known to exhibit poor caching behavior. 
+Moreover, if accesses to all data structures can be statically analyzed, the monitoring phase might also become unnecessary.
+
