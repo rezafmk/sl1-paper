@@ -14,8 +14,8 @@ All results we present here were obtained on an Nvidia GTX~Titan~Black.
 %same time.
 
 \subsubsection{Memory access throughput}
-In our first set of experiments, we used a micro-benchmark that has threads read disjoint subsets of data
-located in the L2 cache as quickly as they can. 
+In our first set of experiments, we used a micro-benchmark that has threads read disjoint (non-contiguous) subsets of data
+located in the L2 cache as quickly as possible.
 The benchmark is parameterized so that the degree of coalescing can be varied.
 Figure~\ref{fig:MemBandwidth} shows the maximum L2 memory bandwidth obtained, measured as
 number of bytes transferred over the network, when servicing 4-way coalesced
@@ -63,8 +63,9 @@ is in the interconnect or in the SMX itself (e.g., coalescing units) rather than
 This is shown in Figure~\ref{fig:L2-DRAM-bandwidth} where we show the throughput as a function of
 the number of thread blocks with each thread block running 1,024 threads.
 Each point along the L2 bandwidth curve is equal to the end point (at 1,024 threads) of the corresponding curve of
-Figures~\ref{fig:MemBandwidth}.
-L2 throughput increases almost linearly, reaching close to 480~GB/s with 15 blocks (and close to 307 GB/s for DRAM).
+Figure~\ref{fig:MemBandwidth}.
+L2 throughput increases almost linearly, reaching close to 480~GB/s with 15 blocks. DRAM throughput increases
+almost linearly up to 10 thread blocks at which point the bandwidth limits at around 300GB/s.
 
 \begin{figure}
 \center
@@ -76,15 +77,16 @@ block is running 1,024 threads and the memory accesses are 4-way coalesced.
 \label{fig:L2-DRAM-bandwidth}
 \end{figure}
 
-All of the results presented above measured the amount of data transferred to the SMXs by the
+The above results measured the amount of data transferred to the SMXs by the
 hardware.
-However, depending on the application, much of this data may not actually be used by the
+In practice, however, much of this data may not actually be used by the
 application.
 For example, for non-coalesced accesses, each 4-byte integer access will result in 32
-byte transfers, of which only 4 are actual used.
+byte transfer, of which only 4 are actual used.
 
-The throughput limitations of L2 and DRAM, as well as the fact that only some of the data transferred is used by the application, indicates that memory access latencies actually experienced in practice will be far larger than the theoretical access latencies presented in Section~\ref{GPUBackground}.
-
+The end result is that the memory access latencies actually experienced in
+practice will be far larger than the theoretical access latencies presented in
+Section~\ref{GPUBackground}.
 This implies that an SMX-local L1 cache, whether implemented in hardware or software, can
 dramatically reduce the average latency of accesses with locality, if implemented appropriately.
 In particular, in contrast to L2 and DRAM throughput,  shared memory throughput within an SMX (not shown) does not flatten out and reaches 60GB/s (for an aggregate throughput of close to 900GB/s with 15 SMXs).

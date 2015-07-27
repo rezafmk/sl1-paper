@@ -5,13 +5,13 @@ bandwidth (in GB/s) have evolved over chip generations, from their earliest CUDA
 version.
 Compute power has been increasing steadily at a steep slope.
 Memory bandwidth has also been increasing, but not as quickly.
-As a result, memory bandwidth per FLOP has been decreasing from 250 bytes/KFLOP for the GTX~8800 to
+As a result, memory bandwidth per FLOP has decreased by a factor of 5: from 250 bytes/KFLOP for the GTX~8800 to
 54 bytes/KFLOP for the GTX~Titan~X.
 
 \begin{figure}
 \center
 \includegraphics[scale=0.26]{computevsmemory.png}
-\caption{\footnotesize\textnormal{Compute power and memory bandwidth over time/GPU generations.}}
+\caption{\footnotesize\textnormal{Compute power and memory bandwidth over time/GPU generation.}}
 \label{fig:compute-power}
 \end{figure}
 
@@ -26,7 +26,7 @@ It has clearly not kept up with the increase in compute power.
 \label{fig:memsize}
 \end{figure}
 
-If this trend continues then the GPU cores will become increasingly memory starved.
+If these trends continue then the GPU cores will become increasingly memory starved.
 Strategies to optimize GPU applications to make more efficient use of the memory hierarchy will likely become more important going forward.
 
 Given the fact that future GPU generations may have smaller on-chip memory sizes, as has happened in

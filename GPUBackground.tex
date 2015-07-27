@@ -43,11 +43,12 @@ The theoretically maximum bandwidth from L1 (per SMX), shared memory (per SMX), 
 
 The term \emph{kernel} is used to denote the function that is executed on the 
 GPU by a collection of threads in parallel.
-The programmer configures the kernel to be executed by a given number of GPU threads.
-These threads are grouped into {\it thread blocks} as configured by the programmer, with a maximum
-1024 threads per thread block.
+The programmer specifies the number of threads to be used,
+grouped into {\it thread blocks}, with a maximum
+of 1024 threads per thread block.
 Each thread block is assigned to a SMX by a hardware scheduler. 
 Each SMX can host up to a maximum of 2048 running threads (e.g. two full-sized thread blocks) at a time.
+
 Threads of a thread block are further divided into groups of 32, called \emph{warps}. 
 The threads in a warp execute in lock-step 
 because groups of 32 cores share the same instruction scheduler.
@@ -56,7 +57,7 @@ on a conditional branch, threads within the same warp take different paths.
 Thread divergence can lead to serious performance degradations. 
 %However, inter-warp divergence does not negatively impact performance.
 
-Memory requests issued by threads of a warp that fall within the same aligned 128-byte region are
+The memory requests issued by threads of a warp that fall within the same aligned 128-byte region are
 coalesced into one memory request by a hardware \emph{coalescing unit} before being sent to memory, resulting in only one 128-byte memory transaction. 
 Parallel memory accesses from a warp to data are defined as $n$-way coalesced if $n$ of the accesses fall
 within the same aligned 128-byte region.
