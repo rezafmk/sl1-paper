@@ -78,7 +78,7 @@ For each experiment, the data accessed by the applications is already located in
 
 
 Figure~\ref{fig:perfbenefit} shows the performance of our 10 benchmark streaming applications when run with S-L1 and hardware L1 
-relative to the performance of the same applications run with no L1 caching (L2 cache is enalbed in all cases).
+relative to the performance of the same applications run with no L1 caching (L2 cache is enabled in all cases).
 On average, the applications using S-L1 run 1.9 times faster than when they use the hardware L1 and 2.1 times faster than when
 run with no L1 caching.
 
@@ -106,7 +106,7 @@ Kmeans is an exception: because the application allocates much of the shared mem
 	Because Kmeans allocates space in shared memory dynamically at run time,
 	the compiler cannot know that there is not enough space for S-L1  cache lines ---
 	otherwise it potentially could have avoided adding the code required for S-L1. In
-	practice, Kmeans would be run wihtout S-L1, so it would not have to incur the S-L1 overheads.}
+	practice, Kmeans would be run without S-L1, so it would not have to incur the S-L1 overheads.}
 
 A second factor is the memory intensity of the applications; i.e., the ratio of memory access instructions to the total number of instructions executed.
 Some applications (e.g., \texttt{upper} and \texttt{wc}) are memory bound and hence benefit from S-L1.
@@ -167,15 +167,15 @@ because hardware L1 leads to increased L1 and L2 cache thrashing.
 \center
 \includegraphics[scale=0.80]{11bigkernelAndSl1.eps}
 \vspace{-0.0cm}
-\caption{\footnotesize\textnormal{Speedup of various implementations over CPU serial version for four GPU applications processing large data sets located in CPU memory.}}
+\caption{\footnotesize\textnormal{Speedup of four GPU applications processing large data sets located in CPU memory relative to the CPU serial versions.}}
 \label{fig:bigkernelandsl1}
 \end{figure}
 %\vspace{-0.2cm}
 
 
-For big data-style applications, the data will not fit in GPU memory because of the limited memory size. 
-Hence, in this subsection, we consider the performance of four applications with data sets large enough to not fit in GPU memory.
-We ran these applications under five different scenarios: 
+For big data-style applications, the data will not fit in GPU memory because of the limited memory size. Hence, in this
+subsection, we consider the performance of four applications with data sets large enough to not fit in GPU memory. We
+ran these applications under five different scenarios:
 \begin{enumerate}
 \item CPU multithreaded when run on a 3.7GHz Intel Core i7-4820K with 24GB of dual-channel memory clocked at 1.8 GHz;
 \item GPU using a single buffer to transfer data between CPU and GPU;
@@ -183,19 +183,21 @@ We ran these applications under five different scenarios:
 \item GPU using BigKernel~\cite{mokhtari2014bigkernel}; and
 \item GPU using BigKernel combined with S-L1.
 \end{enumerate} 
-We selected to combine S-L1 with BigKernel in particular, because BigKernel is
-currently the best performing system for data intensive GPU streaming
+We selected to combine S-L1 with BigKernel in particular, because BigKernel is,
+to the best of our knowledge,
+the currently best performing system for data intensive GPU streaming
 applications~\cite{mokhtari2014bigkernel}.
 
 Figure~\ref{fig:bigkernelandsl1} shows the results.
-For all four applications, using BigKernel combined with S-L1 performs the best,
+For all four applications, using BigKernel with S-L1 performs the best,
 and for all but one application the performance is an order of magnitude better than the multithreaded CPU version.
-Compared to BigKernel alone, BigKernel combined with S-L1 is 1.19X faster.
-The primary reason preventing BigKernel from performing better when combined with S-L1, we observed,
-is that BigKernel uses many registers and therefore, its parallelism is
-limited\footnote{When a kernel uses high number of registers, an SMX will schedule less number of {\it
-online threads} to be able to provide them with the required number of registers.}. 
-We are still working on optimizing this.
+Compared to BigKernel alone, BigKernel with S-L1 is 1.19X faster.
+Limits in thread parallelism is the primary reason BigKernel is prevented from performing better when combined with
+S-L1, because BigKernel requires the use of many registers.\footnote{When a kernel uses high number of registers, an SMX
+will schedule fewer {\it online threads} to be able to provide them with the required number of registers.} As shown in
+Figure~\ref{fig:levelprallelism}, one of the ways S-L1 improves performance is by allowing applications to efficiently
+exploit higher degrees of parallelism.
+
 %Low parallelism can limit
 %the performance gain of a potentially improved memory sub-system. 
 %is that adding S-L1 to BigKernel increases register pressure, which often prevents the program t
@@ -228,13 +230,17 @@ We are still working on optimizing this.
 \center
 \includegraphics[scale=0.93]{4instructionIssueOverhead.eps}
 \vspace{-0.0cm}
-\caption{\footnotesize\textnormal{Extra instruction executed and issued (in \%) due to S-L1.}}
+\caption{\footnotesize\textnormal{Extra instructions executed and issued (in \%) due to S-L1.}}
 \label{fig:instexecissuedoverhead}
 \end{figure}
 %\vspace{-0.2cm}
 
-S-L1 has significant overhead because it is implemented in software and extra instructions need to be executed for each memory access: a minimum of 4 and potentially well over 100 extra instructions per memory access.
-Figure~\ref{fig:instexecissuedoverhead} depicts the increase in the number of instructions, both executed and issued, under S-L1.
+S-L1 has significant overhead because it is implemented in software. 
+However, based on our experiments, the monitoring phase accounts for less than 1\% of this overhead.
+A minimum of 4 and potentially well over 100 extra
+instructions are executed for each memory access.
+Figure~\ref{fig:instexecissuedoverhead} depicts the increase in the number of instructions, both executed and issued,
+when using S-L1 compared to when using hardware L1.
 Executed instructions are the total number of instructions completed, while 
 issued instructions also count the times an instruction is ``replayed'' because it
 encountered a long latency event such as a memory load.
@@ -251,17 +257,23 @@ instruction replays.
 \center
 \includegraphics[scale=0.82]{7cachingOverhead.eps}
 \vspace{-0.0cm}
-\caption{\footnotesize\textnormal{Overhead of S-L1 when S-L1 is enabled but not used to cache any data.}}
+\caption{\footnotesize\textnormal{Overhead of S-L1 when it is enabled but not used to cache data.}}
 \label{fig:sl1overhead}
 \end{figure}
 
-To evaluate the overhead S-L1 introduces for data structures that are not cached, we ran our benchmarks with S-L1, but with all data structures marked as non-cacheable.
-Figure~\ref{fig:sl1overhead} shows the overhead incurred in this case: 8\% on average.
-Based on our experiments, the monitoring phase accounts for less than 1\% of this overhead. 
-The rest of the overhead is attributed to executing the memory access function that is called for each memory access.
+
+
+To evaluate S-L1 overheads when accessing non-cached data structures, we ran our benchmarks with S-L1 enabled but all
+data structures marked as non-cacheable. Figure~\ref{fig:sl1overhead} shows that the overhead is 8\% on average.
+The primary source of the overhead is attributed to executing the memory access function that is called for each memory access.
 As suggested in Section~\ref{sec:perfevaluation}, one potential way to avoid this overhead is have the compiler not
 transform memory accesses to data structures that are found not worthy of caching -- e.g. a data
 structure that is statically known not exhibit any caching benefit.
+
+%introduces for data structures that are not cached, we ran our benchmarks with S-L1, but with all data structures marked as non-cacheable.
+%Figure~\ref{fig:sl1overhead} shows the overhead incurred in this case: 8\% on average.
+%Based on our experiments, the monitoring phase accounts for less than 1\% of this overhead. 
+%The rest of the overhead is attributed to executing the memory access function that is called for each memory access.
 
 
 \subsection{Effect of S-L1 cache line size}
