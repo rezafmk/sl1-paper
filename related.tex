@@ -2,19 +2,18 @@
 \label{sec:related}
 
 A large body of work focuses on using shared memory to increase the performance of applications in
-an application centeric way~\cite{che2009rodinia, tolke2008teraflop, suchard2010understanding, walters2009evaluating,
-lin2010accelerating, Khorasanigpu}. For instance, Nukada et al. propose an
+an application centeric way~\cite{che2009rodinia, Khorasanigpu, lin2010accelerating, suchard2010understanding, tolke2008teraflop, walters2009evaluating}.
+For instance, Nukada et al. propose an
 efficient 3D FFT that uses shared memory to exchange data efficiently between threads~\cite{fftgpu}.
 
 Other work studies more general approaches to harness the benefits of shared memory, typically by
 providing libraries or compile time systems that use shared memory as a scratch-pad to optimize the
-memory performance of applications~\cite{Baskaran, YangCompiler, ueng2008cuda, Khangpu, moazeni2009memory,
-ji2011using}.
+memory performance of applications~\cite{Baskaran, ji2011using, Khangpu, moazeni2009memory, ueng2008cuda, YangCompiler}.
 For instance CudaDMA provides a library targeting scientific applications that allows the programmer
 to stage data in shared memory and use the data from there~\cite{bauer2011cudadma}. A producer
 consumer approach is proposed where some warps only load the data in shared memory (producer)
-and others only do the computation (consumer). What we achieve with S-L1 can also be achieved with
-CudaDMA, however in CudaDMA the programmer is responsible to use the API manually, set the number of
+and others only compute (consumer). What we achieve with S-L1 can also be achieved with
+CudaDMA; however with CudaDMA the programmer must use the API manually, set the number of
 producer and consumer threads, and assign the proper size of shared memory to different threads.
 
 Yang et al. propose a series of compiler optimizations, including vectorization and data
@@ -22,19 +21,19 @@ prefetching, to improve the bandwidth of GPU memory~\cite{YangCompiler}. In part
 a technique in which uncoalesced memory accesses are transformed to coalesced ones using shared
 memory for staging.
 
-Others have also studied the characteristics of GPU memory and GPU
-caches~\cite{wongDomestifying, Gaurgpu}. Jia et al.
-characterize GPU L1 cache locality in Nvidia GPUs and provide a taxonomy for reasoning about
+Other researchers have also studied the characteristics of GPU memory and GPU
+caches~\cite{Gaurgpu, wongDomestifying}. Jia et al.
+characterize L1 cache locality in Nvidia GPUs and provide a taxonomy for reasoning about
 different types of access patterns and how they might benefit from L1
 caches~\cite{jia2012characterizing}.
-Tore et al. provides insights into how to tune the configuration of GPU threads to achieve higher
+Tore et al. provide insights into how to tune the configuration of GPU threads to achieve higher
 cache hit rates and also offers an observation on how the L1 impacts a handful of simple
 kernels~\cite{torres2011understanding}.
 
-Li et al. proposes that register files are a better storage for thread-private
-data than shared memory~\cite{ispasswork}. As an experiment to test this, we
-modified S-L1 to use registers files as its data storage and observed that its
-performance degrades. The reason, we found, is that GPU registers are small
+Li et al. suggested that register files are a better storage for thread-private
+data than shared memory~\cite{ispasswork}. As an experiment, we
+modified S-L1 to use register files for data storage instead of shared memory, but this led to poorer performance.
+The reason, we found, is that GPU registers are small
 (e.g. 4-bytes) and therefore, a cache-line spans multiple registers, which will
 cause the entire cache line (e.g. four registers) to be copied to local memory
 before a location of it is accessed, if the accesses are dynamic (i.e. not know
@@ -55,6 +54,6 @@ at compile time) -- which is the case in S-L1.
 %sum-product solver application. The proposed cache is read-only and direct-map, where the entire
 %cache space is shared among all threads~\cite{silberstein2008efficient} \todo{we can exclude this}.
 
-Finally, some studied the potential architectural changes that could improve the GPU caching
-behavior, including a recent study that analyzes potential coherent models for GPU L1
+Finally, a number of potential architectural changes that could improve the GPU caching
+behavior have been proposed, including a recent study that analyzes potential coherent models for GPU L1
 caches~\cite{singh2013cache}.

@@ -2,33 +2,31 @@
 \label{sec:conclusion}
 
 By reverse-engineering the Nvidia GTX~Titan~Black through a series of experiments, we characterized the behavior of the memory hierarchy of modern GPUs.
-We showed that the bandwidth between off-chip memory and GPU SMXs is capped so that the latency of L2/DRAM accesses increases substantially the more memory intensive the application.
-We also showed that raw GPU compute power has been increasing more rapidly than the size of on-chip
-L1 caches.
-As a result, there is a growing need for effective, on-chip caching to reduce the number of memory
-accesses that need to leave each multiprocessor.
+We showed that the bandwidth between off-chip memory and GPU SMXs is limited so that the latency of L2/DRAM accesses increases substantially the more memory intensive the application.
+We also showed that raw GPU compute power has been growing faster than the size of on-chip
+L1 caches, resulting in substantially increased L2/DRAM access latencies once the memory intensity of the application reached a threshold.
 
-In this paper, we proposed S-L1, a GPU level 1 cache which is implemented entirely in software using SMX shared memory.
+To address these issues, we proposed S-L1, a GPU level 1 cache which is implemented entirely in software using SMX shared memory.
 S-L1 determines, at run time, the proper size of cache, samples the effectiveness of caching the data of different data structures, and based on that information, decides what data to cache.
-Although the software implementation adds on average 8\% overhead to the applications we tested, our experimental results show that this overhead is amortized by faster average memory access latencies for most of these applications.
+Although the software implementation adds 8\% overhead to the applications we tested on average, our experimental results show that this overhead is amortized by faster average memory access latencies for most of these applications.
 Specifically, S-L1 achieves speedups of between 0.86 and 4.30 (1.90 avg) over hardware L1 and between 0.95 and 6.50 (2.10 avg) over no L1 caching on ten GPU-local streaming applications.
 Combining S-L1 with BigKernel, the fastest known technique accelerating GPU applications processing
-large data sets located in CPU memory, leads to speedups between 1.07 and 1.45 (1.19 avg.) over
-BigKernel alone, and speedups between 1.07 and 6.37 (3.7 avg.) over the fastest CPU multicore implementations.
+large data sets located in CPU memory, we achieved speedups of between 1.07 and 1.45 (1.19 avg.) over
+BigKernel alone, and speedups of between 1.07 and 6.37 (3.7 avg.) over the fastest CPU multicore implementations.
 
 While it is understandable that GPU designers need to prioritize optimizations for graphical
 processing and maintain commodity pricing, we believe that our work provides some indications of how
-the GPU designers could enhance current designs to make GPU designs more effective for data
+GPU designers could enhance current designs to make GPU designs more effective for data
 intensive GPGPU applications.
-The most straightforward enhancement is to significantly increase the size of the L1 --- with its current size it 
-only supports 0.18 of a cache line per thread when applications run with the maximum number of online threads allowed.
+The most straightforward enhancement is to significantly increase the size of the L1 --- its current size
+only supports 0.18 cache lines per thread when applications run with the maximum number of online threads allowed.
 Another enhancement would be to allow on-chip cache geometry to be more configurable, particularly allowing the cache
 lines to be smaller.
 
 %We also believe that a design similar to our S-L1 design could be implemented in hardware in a
 %reasonably straightforward way, which would almost entirely eliminate the overhead that our software entails.
 
-For future work,  we intend to reduce the overhead of S-L1 by relying more on the compile-time technology. 
+In future work,  we intend to reduce the overhead of S-L1 by relying more on the compile-time technology. 
 Using compiler technology, we can avoid transforming memory accesses to data structures that are statically known to exhibit poor caching behavior. 
 Moreover, if accesses to all data structures can be statically analyzed, the monitoring phase might also become unnecessary.
 
