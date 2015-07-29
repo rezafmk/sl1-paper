@@ -62,7 +62,7 @@ resources of SMX, which is extracted at compile-time and runtime, respectively.
 Once the number of cache lines per thread -- $CLN$ -- has been determined, up to that many data structures are marked as S-L1 cacheable and a separate cache line is assigned to each.
 In principle, multiple cache lines could be assigned to a data structure, but we found this does not benefit the streaming applications we are targeting.
 Data structures marked non-cacheable will not be cached and are accessed directly from memory. 
-If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by the application) then S-L1 is effectively disable by assigning no cache lines to threads (i.e., $CLN = 0$). 
+If the available size of shared memory per thread is less than $cacheLineSize$ (i.e., too much shared memory has already been allocated by the application) then S-L1 is effectively disabled by assigning no cache lines to threads (i.e., $CLN = 0$). 
 
 To determine which data structures to cache, we evaluate the benefit of caching the data of each
 data structure using a short monitoring phase at runtime.
@@ -393,7 +393,7 @@ line to make space for the new target cache line. Modified portions of the
 current cache line are first written back if necessary; a bitmap (kept in
 registers) is used to identify which portions of the cache line are modified.
 This approach also guarantees that two different threads will not overwrite each others data if they cache the same line (in different S-L1 lines) and
-modify different potions of the cache line.
+modify different potions of it.
 
 %TODO: move this parag to after the second loop is described
 A call to \texttt{flush()} is inserted after the second loop slice to flush the modified cache lines to memory and invalidate all cache lines before the application terminates.

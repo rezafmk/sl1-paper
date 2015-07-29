@@ -18,9 +18,9 @@ In our first set of experiments, we used a micro-benchmark that has threads read
 located in the L2 cache as quickly as possible.
 The benchmark is parameterized so that the degree of coalescing can be varied.
 Figure~\ref{fig:MemBandwidth} shows the maximum L2 memory bandwidth obtained, measured as
-number of bytes transferred over the network, when servicing 4-way coalesced
+the number of bytes transferred over the network, when servicing 4-way coalesced
 accesses from the L2 cache as the number of threads running in each thread block is increased up to
-1024.
+1,024.
 
 %\footnote{
 %	4-way coalesced means that four data items, accessed by simultaneous threads, 
@@ -52,7 +52,7 @@ than 32~GB/s.\footnote{
     However, the smaller the coalescing degree (e.g. 1-way coalesced), the
     earlier the curve flattens out.}
 We observe similar behavior for DRAM (not shown) when we adjusted the micro-benchmarks to only access data certain to not be in the L2 cache, except that the throughput flattens out
-earlier at about 480 threads, reaching a peak bandwidth of 307 GB/s with 15 blocks.
+earlier at about 480 threads, reaching to a peak bandwidth of 307~GB/s with 15 blocks.
 %\todo{fill in the XX and YY above}
 % shown in Figure~\ref{fig:DRAMBandwidth}.
 

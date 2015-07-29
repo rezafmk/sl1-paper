@@ -112,7 +112,7 @@ A second factor is the memory intensity of the applications; i.e., the ratio of 
 Some applications (e.g., \texttt{upper} and \texttt{wc}) are memory bound and hence benefit from S-L1.
 At the other extreme, \texttt{grep} doesn't perform as well despite having a
 high cache hit rate, mainly because it becomes instruction throughput bound
-after applying S-L1 due to its recursive algorithm. The benefits of the
+after applying S-L1 due to the application's recursive algorithm. The benefits of the
 caching layer is negated by the extra instructions that need to be executed
 because of the software implementation of S-L1.
 
@@ -140,7 +140,7 @@ A third factor is the degree to which S-L1 enables extra productive thread paral
 Figure~\ref{fig:levelprallelism} shows the number of \emph{online} threads\footnote{
     I.e., threads that run at the same time on all multiprocessors, the maximum of which can be 30K threads on our GPU.}
 that result in the best performance for each application with S-L1 and with hardware L1.
-Overall, applications perform best with a large number of threads when using S-L1 compared to hardware L1,
+Overall, applications perform best with a larger number of threads when using S-L1 compared to hardware L1,
 because hardware L1 leads to increased L1 and L2 cache thrashing. 
 
 %An example of the L2 cache thrashing when L1 is enalbed is
@@ -268,7 +268,7 @@ data structures marked as non-cacheable. Figure~\ref{fig:sl1overhead} shows that
 The primary source of the overhead is attributed to executing the memory access function that is called for each memory access.
 As suggested in Section~\ref{sec:perfevaluation}, one potential way to avoid this overhead is have the compiler not
 transform memory accesses to data structures that are found not worthy of caching -- e.g. a data
-structure that is statically known not exhibit any caching benefit.
+structure that is statically known to not exhibit any caching benefit.
 
 %introduces for data structures that are not cached, we ran our benchmarks with S-L1, but with all data structures marked as non-cacheable.
 %Figure~\ref{fig:sl1overhead} shows the overhead incurred in this case: 8\% on average.

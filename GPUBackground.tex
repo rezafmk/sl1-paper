@@ -45,9 +45,9 @@ The term \emph{kernel} is used to denote the function that is executed on the
 GPU by a collection of threads in parallel.
 The programmer specifies the number of threads to be used,
 grouped into {\it thread blocks}, with a maximum
-of 1024 threads per thread block.
+of 1,024 threads per thread block.
 Each thread block is assigned to a SMX by a hardware scheduler. 
-Each SMX can host up to a maximum of 2048 running threads (e.g. two full-sized thread blocks) at a time.
+Each SMX can host up to a maximum of 2,048 running threads (e.g. two full-sized thread blocks) at a time.
 
 Threads of a thread block are further divided into groups of 32, called \emph{warps}. 
 The threads in a warp execute in lock-step 
