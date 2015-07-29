@@ -1,19 +1,75 @@
-\documentclass[pageno]{jpaper}
+% THIS IS SIGPROC-SP.TEX - VERSION 3.1
+% WORKS WITH V3.2SP OF ACM_PROC_ARTICLE-SP.CLS
+% APRIL 2009
+%
+% It is an example file showing how to use the 'acm_proc_article-sp.cls' V3.2SP
+% LaTeX2e document class file for Conference Proceedings submissions.
+% ----------------------------------------------------------------------------------------------------------------
+% This .tex file (and associated .cls V3.2SP) *DOES NOT* produce:
+%       1) The Permission Statement
+%       2) The Conference (location) Info information
+%       3) The Copyright Line with ACM data
+%       4) Page numbering
+% ---------------------------------------------------------------------------------------------------------------
+% It is an example which *does* use the .bib file (from which the .bbl file
+% is produced).
+% REMEMBER HOWEVER: After having produced the .bbl file,
+% and prior to final submission,
+% you need to 'insert'  your .bbl file into your source .tex file so as to provide
+% ONE 'self-contained' source file.
+%
+% Questions regarding SIGS should be sent to
+% Adrienne Griscti ---> griscti@acm.org
+%
+% Questions/suggestions regarding the guidelines, .tex and .cls files, etc. to
+% Gerald Murray ---> murray@hq.acm.org
+%
+% For tracking purposes - this is V3.1SP - APRIL 2009
 
-%replace XXX with the submission number you are given from the ASPLOS submission site.
-\newcommand{\asplossubmissionnumber}{291}
+\documentclass{acm_proc_article-sp}
 
-\usepackage[normalem]{ulem}
-\newcommand{\todo}[1]{{\bf *** TODO: {#1} ***}}
+\usepackage{url}
 
 \begin{document}
 
-\title{S-L1: Resurrecting the GPU L1 Cache by Emulating it in Software\\ to Improve GPGPU Data Processing Performance}
+\title{S-L1: Resurrecting the GPU L1 Cache by Emulating it in Software to Improve GPGPU Data Processing Performance}
 
-\date{}
+\numberofauthors{2} %  in this sample file, there are a *total*
+% of EIGHT authors. SIX appear on the 'first-page' (for formatting
+% reasons) and the remaining two appear in the \additionalauthors section.
+%
+\author{
+% You can go ahead and credit any number of authors here,
+% e.g. one 'row of three' or two rows (consisting of one row of three
+% and a second row of one, two or three).
+%
+% The command \alignauthor (no curly braces needed) should
+% precede each author name, affiliation/snail-mail address and
+% e-mail address. Additionally, tag each line of
+% affiliation/address with \affaddr, and tag the
+% e-mail address with \email.
+%
+% 1st. author
+\alignauthor
+\large{Reza Mokhtari}\\
+       \affaddr{\normalsize{Department of Electrical and Computer Engineering}}\\
+       \affaddr{\normalsize{University of Toronto}}\\
+       \affaddr{\normalsize{Toronto, Canada}}\\
+       \email{\normalsize{\texttt{mokhtari@ece.toronto.edu}}}
+% 2nd. author
+\alignauthor
+\large{Michael Stumm}\\
+       \affaddr{\normalsize{Department of Electrical and Computer Engineering}}\\
+       \affaddr{\normalsize{University of Toronto}}\\
+       \affaddr{\normalsize{Toronto, Canada}}\\
+       \email{\normalsize{\texttt{stumm@ece.toronto.edu}}}
+}
+
 \maketitle
 
-\thispagestyle{empty}
+%hello world~\cite{nicepaper2}.
+
+
 
 \input abstract
 \input intro
@@ -24,9 +80,10 @@
 \input related
 \input conclusion
 
-\bibliographystyle{plain}
-\bibliography{references}
 
+\small
+\bibliographystyle{abbrv}
+\bibliography{references}  % sigproc.bib is the name of the Bibliography in this case
 
+%\balancecolumns
 \end{document}
-

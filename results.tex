@@ -56,18 +56,20 @@ thread (see Section~\ref{sec:overview}).}} %title of the table
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.7]{1speedups.eps}
-\vspace{-0.0cm}
+\vspace{-0.6cm}
 \caption{\footnotesize\textnormal{Speedup when using S-L1 relative to no L1 caching.}}
 \label{fig:perfbenefit}
+\vspace{-0.2cm}
 \end{figure}
 \vspace{-0.0cm}
 
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.9]{3memoryAcceessReuction.eps}
-\vspace{-0.0cm}
+\vspace{-0.7cm}
 \caption{\footnotesize\textnormal{S-L1 hit rate.}}
 \label{fig:sl1hitrate}
+\vspace{-0.3cm}
 \end{figure}
 %\vspace{-0.2cm}
 
@@ -124,6 +126,7 @@ because of the software implementation of S-L1.
 \vspace{-0.0cm}
 \caption{\footnotesize\textnormal{The optimal number of online threads (that leads to the best execution times) with and without S-L1.}}
 \label{fig:levelprallelism}
+\vspace{-0.5cm}
 \end{figure}
 %\vspace{-0.2cm}
 
@@ -169,6 +172,7 @@ because hardware L1 leads to increased L1 and L2 cache thrashing.
 \vspace{-0.0cm}
 \caption{\footnotesize\textnormal{Speedup of four GPU applications processing large data sets located in CPU memory relative to the CPU serial versions.}}
 \label{fig:bigkernelandsl1}
+\vspace{-0.2cm}
 \end{figure}
 %\vspace{-0.2cm}
 
@@ -229,7 +233,7 @@ exploit higher degrees of parallelism.
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.93]{4instructionIssueOverhead.eps}
-\vspace{-0.0cm}
+\vspace{-0.4cm}
 \caption{\footnotesize\textnormal{Extra instructions executed and issued (in \%) due to S-L1.}}
 \label{fig:instexecissuedoverhead}
 \end{figure}
@@ -256,9 +260,10 @@ instruction replays.
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.82]{7cachingOverhead.eps}
-\vspace{-0.0cm}
+\vspace{-0.3cm}
 \caption{\footnotesize\textnormal{Overhead of S-L1 when it is enabled but not used to cache data.}}
 \label{fig:sl1overhead}
+\vspace{-0.3cm}
 \end{figure}
 
 
@@ -283,11 +288,11 @@ structure that is statically known to not exhibit any caching benefit.
 \begin{figure}[t]
 \center
 \includegraphics[scale=0.85]{6differentCachelineSizes.eps}
-\vspace{-0.1cm}
+\vspace{-0.4cm}
 \caption{\footnotesize\textnormal{Slowdown/speedup when using 8B and 24B cache lines over using 16B cache lines.}}
 \label{fig:cachelinesize}
+\vspace{-0.4cm}
 \end{figure}
-\vspace{-0.1cm}
 
 Figure~\ref{fig:cachelinesize} compares the overall performance of applications when using different variations of S-L1 using different cache line sizes. 
 Specifically, we show the performance improvement/loss for 8-byte and 24-byte cache lines over

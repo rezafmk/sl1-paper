@@ -41,7 +41,7 @@ threads executing when running the Unix word count utility, \texttt{wc}.
 
 The hardware L1 has proven to be so ineffective that some recent GPU chip sets (e.g. Nvidia GTX Titan Black)
 by default disable the L1 caching of application data.
-We do not expect GPU L1 caches to become significantly more effective any time in the near future, given historical trends (see Section~\ref{GPUArchTrends}).
+We do not expect GPU L1 caches to become significantly more effective any time in the near future, given historical trends~(see Section~\ref{GPUArchTrends}).
 
 A second factor preventing further improvements in core utilization is the high latency to access L2 and  DRAM. 
 On the Nvidia GeForce GTX Titan Black, the latency of a single, isolated access to L2 and DRAM is 240 and 350 cycles, respectively. These
@@ -57,6 +57,7 @@ each chunk assigned to a thread for processing. With a small number of threads, 
 first access of each thread results in a miss, but the subsequent 127 accesses
 result in cache hits. With a large number of threads, 128 accesses can result in 128
 misses.}} \label{fig:L1HitRate}
+\vspace{-0.6cm}
 \end{figure}
 
 Thirdly, bottlenecks on the path from L2/DRAM to GPU cores prevent scaling of memory throughput and can prevent exploitation of the full L2 and DRAM bandwidth, as we will also show in Section~\ref{GPUBehavior}.
