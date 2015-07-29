@@ -237,7 +237,7 @@ exploit higher degrees of parallelism.
 
 S-L1 has significant overhead because it is implemented in software. 
 However, based on our experiments, the monitoring phase accounts for less than 1\% of this overhead.
-A minimum of 4 and potentially well over 100 extra
+After the monitoring phase is finished, a minimum of 4 and potentially well over 100 extra
 instructions are executed for each memory access.
 Figure~\ref{fig:instexecissuedoverhead} depicts the increase in the number of instructions, both executed and issued,
 when using S-L1 compared to when using hardware L1.
@@ -282,19 +282,18 @@ structure that is statically known not exhibit any caching benefit.
 
 \begin{figure}[t]
 \center
-\includegraphics[scale=0.88]{6differentCachelineSizes.eps}
-\vspace{-0.0cm}
+\includegraphics[scale=0.85]{6differentCachelineSizes.eps}
+\vspace{-0.1cm}
 \caption{\footnotesize\textnormal{Slowdown/speedup when using 8B and 24B cache lines over using 16B cache lines.}}
 \label{fig:cachelinesize}
 \end{figure}
-%\vspace{-0.2cm}
+\vspace{-0.1cm}
 
 Figure~\ref{fig:cachelinesize} compares the overall performance of applications when using different variations of S-L1 using different cache line sizes. 
 Specifically, we show the performance improvement/loss for 8-byte and 24-byte cache lines over
-16-byte cache lines.\footnote{We did not choose 32 as a potential cache line size since it is more
-than the size of shared memory that will be assigned to a threads, if SMXs are fully occupied (i.e.
-2048 threads), given the maximum size of shared memory (i.e. 48KB).}
-%\todo{Say why 24B (as opposed to 32B)?}
+16-byte cache lines.\footnote{We did not consider 32 as a potential cache line size since 
+    this size would not be able to support 2,048 threads given the maximum size of shared memory  
+    (i.e. 48KB).}
 
 In most cases, 16-byte cache lines seems to be best choice. 
 As we described in Section~\ref{sec:overview}, we believe this is mainly because 16-bytes is the widest available load/store size on GPU ISA and hence, the entire cache line can be read/written with one memory access.

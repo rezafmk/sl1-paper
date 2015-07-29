@@ -3,7 +3,7 @@
 
 A large body of work focuses on using shared memory to increase the performance of applications in
 an application centeric way~\cite{che2009rodinia, tolke2008teraflop, suchard2010understanding, walters2009evaluating,
-rodrigues2008gpu, lin2010accelerating, Khorasanigpu}. For instance, Nukada et al. propose an
+lin2010accelerating, Khorasanigpu}. For instance, Nukada et al. propose an
 efficient 3D FFT that uses shared memory to exchange data efficiently between threads~\cite{fftgpu}.
 
 Other work studies more general approaches to harness the benefits of shared memory, typically by
@@ -30,6 +30,16 @@ caches~\cite{jia2012characterizing}.
 Tore et al. provides insights into how to tune the configuration of GPU threads to achieve higher
 cache hit rates and also offers an observation on how the L1 impacts a handful of simple
 kernels~\cite{torres2011understanding}.
+
+Li et al. proposes that register files are a better storage for thread-private
+data than shared memory~\cite{ispasswork}. As an experiment to test this, we
+modified S-L1 to use registers files as its data storage and observed that its
+performance degrades. The reason, we found, is that GPU registers are small
+(e.g. 4-bytes) and therefore, a cache-line spans multiple registers, which will
+cause the entire cache line (e.g. four registers) to be copied to local memory
+before a location of it is accessed, if the accesses are dynamic (i.e. not know
+at compile time) -- which is the case in S-L1.
+
 
 %They also provide a compile-time algorithm to identify an application's memory access pattern and to use
 %that information to configure cache usage (by not caching some memory accesses). The disadvantage of
